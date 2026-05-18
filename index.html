@@ -33,7 +33,91 @@
             overflow-x: hidden;
         }
 
+        @media (max-width: 768px) {
+        body {
+            font-size: 14px;
+        }
+
         .container {
+            flex-direction: column;
+            height: auto;
+        }
+
+        .sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            max-height: 260px;
+        }
+
+        .sidebar.collapsed {
+            max-height: 48px;
+            width: 100%;
+            padding: 8px 16px;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+        }
+
+        .course-tabs {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+        }
+
+        .filter-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            row-gap: 8px;
+        }
+
+        .main-content {
+            width: 100%;
+        }
+
+        .header {
+            padding: 12px 16px;
+        }
+
+        .header h1 {
+            font-size: 20px;
+        }
+
+        .stats-panel {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .assignment-card {
+            padding: 10px 12px;
+        }
+
+        .assignment-title {
+            font-size: 14px;
+        }
+
+        .filters-toggle-bar {
+            display: flex;
+            justify-content: flex-end;
+            padding: 8px 16px 0;
+        }
+
+        .filters-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.6);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 12px;
+        }
+    }
+
+.container {
             display: flex;
             height: 100vh;
         }
@@ -580,6 +664,10 @@
     </style>
 </head>
 <body>
+    <div class="filters-toggle-bar">
+        <button class="filters-toggle-btn" onclick="document.getElementById('collapseBtn').click()">Filters</button>
+    </div>
+
     <div class="container">
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
