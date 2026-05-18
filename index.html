@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --primary: #7BA98B;
+            --primary-dark: #5F8A71;
+            --accent: #F5B8D1;
+            --success: #A8D5BA;
+            --warning: #F4D4B8;
+            --danger: #E8B4B8;
+            --bg: #F0E8E6;
+            --surface: #FBF8F6;
+            --text: #3D3D3D;
+            --text-secondary: #8B8B8B;
+            --border: #E8D5DD;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.2s ease, transform 0.2s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 52px;
+            padding: 20px 8px;
+        }
+
+        .sidebar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .sidebar h2 {
+            font-size: 18px;
+            color: var(--primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .collapse-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 18px;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .collapse-btn:hover {
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .course-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .course-tab {
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.4);
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .course-tab.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary-dark);
+        }
+
+        .sidebar.collapsed .course-tabs {
+            flex-direction: column;
+        }
+
+        .sidebar.collapsed .course-tab {
+            padding: 6px;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 36px;
+        }
+
+        .filter-section {
+            margin-top: 8px;
+        }
+
+        .sidebar.collapsed .filter-section {
+            display: none;
+        }
+
+        .filter-group {
+            margin-bottom: 20px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(123, 169, 139, 0.1);
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            background: var(--primary);
+            border-bottom: 1px solid var(--border);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 24px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 2px 8px rgba(123, 169, 139, 0.2);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(123, 169, 139, 0.35);
+        }
+
+        .btn-secondary {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+            opacity: 0.8;
+        }
+
+        .assignments-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .stat-card-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-card-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .assignment-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .assignment-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 6px 16px rgba(123, 169, 139, 0.12);
+            transform: translateX(4px);
+        }
+
+        .assignment-card.completed {
+            opacity: 0.6;
+        }
+
+        .assignment-card.completed .assignment-title {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+
+        .checkbox {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 2px;
+            transition: all 0.2s ease;
+        }
+
+        .checkbox:hover {
+            border-color: var(--primary);
+        }
+
+        .checkbox.checked {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .assignment-content {
+            flex: 1;
+        }
+
+        .assignment-title {
+            font-weight: 600;
+            font-size: 15px;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+
+        .assignment-meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .badge {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+        }
+
+        .badge-course {
+            background: rgba(123, 169, 139, 0.2);
+            color: #5F8A71;
+        }
+
+        .badge-type {
+            background: rgba(245, 184, 209, 0.2);
+            color: #D77F9C;
+        }
+
+        .badge-priority {
+            background: rgba(244, 212, 184, 0.3);
+            color: #B88F6B;
+            font-weight: 600;
+        }
+
+        .badge-priority.high {
+            background: rgba(232, 180, 184, 0.3);
+            color: #A05F67;
+        }
+
+        .assignment-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            flex-wrap: wrap;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-secondary);
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            color: var(--text);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: var(--text);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(123, 169, 139, 0.1);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+        }
+
+        .add-mode-toggle {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .add-mode-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
+        }
+
+        .add-mode-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary-dark);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding: 12px;
+            }
+
+            .sidebar.collapsed {
+                width: 100%;
+                padding: 8px 12px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                width: 100%;
+            }
+
+            .header-actions .btn {
+                flex: 1;
+            }
+
+            .stats-panel {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>📚 Filters</h2>
+                <button class="collapse-btn" id="collapseBtn" title="Toggle sidebar">&laquo;</button>
+            </div>
+
+            <div class="course-tabs" id="courseTabs">
+                <button class="course-tab active" data-course="All">All</button>
+                <button class="course-tab" data-course="Math">Math</button>
+                <button class="course-tab" data-course="History">History</button>
+                <button class="course-tab" data-course="Spanish">Spanish</button>
+                <button class="course-tab" data-course="Chemistry">Chemistry</button>
+                <button class="course-tab" data-course="Music">Music</button>
+                <button class="course-tab" data-course="English">English</button>
+                <button class="course-tab" data-course="English 101">English 101</button>
+                <button class="course-tab" data-course="Accounting">Accounting</button>
+                <button class="course-tab" data-course="PE">PE</button>
+            </div>
+
+            <div class="filter-section">
+                <div class="filter-group">
+                    <label for="typeFilter">Assignment Type</label>
+                    <select id="typeFilter">
+                        <option value="">All Types</option>
+                        <option value="Tests">Tests</option>
+                        <option value="Homework">Homework</option>
+                        <option value="Quizzes">Quizzes</option>
+                        <option value="Labs">Labs</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="courseScopeFilter">Courses</label>
+                    <select id="courseScopeFilter">
+                        <option value="current-all" selected>Current courses (all)</option>
+                        <option value="all-all">All courses</option>
+                        <optgroup label="Current courses">
+                            <option value="IB Analysis & Approaches SL">IB Analysis & Approaches SL (Math)</option>
+                            <option value="IB History of the Americas HL">IB History of the Americas HL (History)</option>
+                            <option value="Spanish 3">Spanish 3 (Spanish)</option>
+                            <option value="IB Chemistry HL">IB Chemistry HL (Chemistry)</option>
+                            <option value="Jazz 1">Jazz 1 (Music)</option>
+                            <option value="Wind Symphony">Wind Symphony (Music)</option>
+                            <option value="ENGL& 102 Composition II">ENGL& 102 Composition II (English)</option>
+                            <option value="ACCT 101 Accounting Fundamentals">ACCT 101 Accounting Fundamentals (Accounting)</option>
+                        </optgroup>
+                        <optgroup label="Past courses">
+                            <option value="ENGL& 101 English Composition I">ENGL& 101 English Composition I (English, past)</option>
+                            <option value="PE 117 Yoga Strength/Flex">PE 117 Yoga Strength/Flex (PE, past)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="sortBy">Sort By</label>
+                    <select id="sortBy">
+                        <option value="dueDate">Due Date</option>
+                        <option value="gradeWeight">Grade Weight</option>
+                        <option value="course">Course</option>
+                        <option value="priority">Priority</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="statusFilter">Status</label>
+                    <select id="statusFilter">
+                        <option value="">All</option>
+                        <option value="incomplete">Incomplete</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="timeFilter">Show Tasks By Time</label>
+                    <select id="timeFilter">
+                        <option value="">All Tasks</option>
+                        <option value="quick">Quick (&lt; 1 hour)</option>
+                        <option value="medium">Medium (1-3 hours)</option>
+                        <option value="long">Long (3+ hours)</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label style="color: var(--text); font-weight: 600; margin-bottom: 8px;">📊 Data</label>
+                    <button class="btn btn-secondary" style="width: 100%; margin-bottom: 8px;" onclick="exportData()">💾 Export Data</button>
+                    <button class="btn btn-secondary" style="width: 100%;" onclick="document.getElementById('importFile').click()">📂 Import Data</button>
+                    <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <h1>📋 My Assignments</h1>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openAddModal()">+ Add Assignment</button>
+                </div>
+            </div>
+
+            <div class="assignments-area">
+                <div class="stats-panel">
+                    <div class="stat-card">
+                        <div class="stat-card-number" id="totalCount">0</div>
+                        <div class="stat-card-label">Total Assignments</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-number" id="completedCount">0</div>
+                        <div class="stat-card-label">Completed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-number" id="incompleteCount">0</div>
+                        <div class="stat-card-label">To Do</div>
+                    </div>
+                </div>
+
+                <div id="assignmentsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Assignment Modal -->
+    <div id="assignmentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Add Assignment</h2>
+                <button class="close-btn" onclick="closeModal('assignmentModal')">&times;</button>
+            </div>
+
+            <div class="add-mode-toggle">
+                <button id="modeFormBtn" class="add-mode-btn active" onclick="setAddMode('form')">Form</button>
+                <button id="modePasteBtn" class="add-mode-btn" onclick="setAddMode('paste')">Paste from Canvas</button>
+            </div>
+
+            <!-- Form mode -->
+            <form id="assignmentForm" onsubmit="saveAssignment(event)">
+                <div id="formModeSection">
+                    <div class="form-group">
+                        <label for="assignmentTitle">Assignment Title *</label>
+                        <input type="text" id="assignmentTitle">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assignmentCourse">Course *</label>
+                        <select id="assignmentCourse">
+                            <option value="">Select course...</option>
+                            <option value="Math">Math</option>
+                            <option value="History">History</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Chemistry">Chemistry</option>
+                            <option value="Music">Music</option>
+                            <option value="English">English (ENGL& 102)</option>
+                            <option value="English 101">English 101 (past)</option>
+                            <option value="Accounting">Accounting</option>
+                            <option value="PE">PE (past)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="assignmentType">Type *</label>
+                        <select id="assignmentType">
+                            <option value="">Select Type</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dueDate">Due Date *</label>
+                        <input type="datetime-local" id="dueDate">
+                    </div>
+
+                    <div class="form-group weighted-only" id="gradeWeightGroup">
+                        <label for="gradeWeight">Grade Weight (%)</label>
+                        <input type="number" id="gradeWeight" min="0" max="100" step="0.1" placeholder="e.g., 20">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="maxScore">Max Score (Points)</label>
+                        <input type="number" id="maxScore" placeholder="e.g., 100">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <textarea id="description" placeholder="Add any additional notes..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="timeEstimate">Time Estimate (hours)</label>
+                        <input type="number" id="timeEstimate" min="0" step="0.5" placeholder="e.g., 2.5">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="difficulty">Difficulty Level</label>
+                        <select id="difficulty">
+                            <option value="">Select Level</option>
+                            <option value="Easy">Easy</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Hard">Hard</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Paste mode -->
+                <div id="pasteModeSection" class="hidden">
+                    <div class="form-group">
+                        <label for="pasteCourse">Course *</label>
+                        <select id="pasteCourse">
+                            <option value="">Select course...</option>
+                            <option value="Math">Math</option>
+                            <option value="History">History</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Chemistry">Chemistry</option>
+                            <option value="Music">Music</option>
+                            <option value="English">English (ENGL& 102)</option>
+                            <option value="English 101">English 101 (past)</option>
+                            <option value="Accounting">Accounting</option>
+                            <option value="PE">PE (past)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pasteText">Paste assignment blocks from Canvas</label>
+                        <textarea id="pasteText" placeholder="Paste one or more assignments exactly as copied from Canvas..."></textarea>
+                    </div>
+                    <div id="pastePreview" class="form-group" style="font-size: 12px; color: var(--text-secondary); display:none;"></div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('assignmentModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Assignment(s)</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const CANVAS_COURSE_MAP = {
+            'IB Analysis & Approaches SL': { nickname: 'Math', current: true },
+            'IB History of the Americas HL': { nickname: 'History', current: true },
+            'Spanish 3': { nickname: 'Spanish', current: true },
+            'IB Chemistry HL': { nickname: 'Chemistry', current: true },
+            'Jazz 1': { nickname: 'Music', current: true },
+            'Wind Symphony': { nickname: 'Music', current: true },
+            'ENGL& 101 English Composition I': { nickname: 'English 101', current: false },
+            'ENGL& 102 Composition II': { nickname: 'English', current: true },
+            'ACCT 101 Accounting Fundamentals': { nickname: 'Accounting', current: true },
+            'PE 117 Yoga Strength/Flex': { nickname: 'PE', current: false }
+        };
+
+const CURRENT_NICKNAMES = new Set(['Math', 'History', 'Spanish', 'Chemistry', 'Music', 'English', 'Accounting']);
+
+        function updateCourseTabVisibility() {
+            const scopeSelect = document.getElementById('courseScopeFilter');
+            const scopeValue = scopeSelect ? scopeSelect.value : 'current-all';
+            const tabs = document.querySelectorAll('.course-tab');
+
+            tabs.forEach(tab => {
+                const nickname = tab.getAttribute('data-course');
+                if (nickname === 'All') {
+                    tab.style.display = 'inline-flex';
+                    return;
+                }
+
+                if (scopeValue === 'all-all') {
+                    tab.style.display = 'inline-flex';
+                    return;
+                }
+
+                if (CURRENT_NICKNAMES.has(nickname)) {
+                    tab.style.display = 'inline-flex';
+                } else {
+                    tab.style.display = 'none';
+                    if (tab.classList.contains('active')) {
+                        tab.classList.remove('active');
+                        const allTab = document.querySelector('.course-tab[data-course="All"]');
+                        if (allTab) {
+                            allTab.classList.add('active');
+                            currentCourseTab = 'All';
+                        }
+                    }
+                }
+            });
+        }
+
+        function mapCanvasCourseToNickname(courseName) {
+            const name = (courseName || '').trim();
+            if (!name) return { nickname: '', current: true, canonicalName: '' };
+            if (CANVAS_COURSE_MAP[name]) {
+                const meta = CANVAS_COURSE_MAP[name];
+                return { nickname: meta.nickname, current: !!meta.current, canonicalName: name };
+            }
+            const lower = name.toLowerCase();
+            if (lower.includes('jazz')) return { nickname: 'Music', current: true, canonicalName: name };
+            if (lower.includes('wind symphony')) return { nickname: 'Music', current: true, canonicalName: name };
+            return { nickname: name, current: true, canonicalName: name };
+        }
+
+const COURSE_CONFIG = {
+            'Math': {
+                types: ['Daily Work', 'Test', 'Practice'],
+                weights: { 'Daily Work': 20, 'Test': 80, 'Practice': 0 }
+            },
+            'History': {
+                types: ['Formative', 'Summative'],
+                weights: { 'Formative': 35, 'Summative': 65 }
+            },
+            'Chemistry': {
+                types: ['Quizzes', 'Homework', 'Tests', 'Labs'],
+                weights: { 'Quizzes': 15, 'Homework': 5, 'Tests': 60, 'Labs': 20 }
+            },
+            'Spanish': {
+                types: ['Assessment', 'Performance', 'Practice'],
+                weights: { 'Assessment': 70, 'Performance': 20, 'Practice': 10 }
+            },
+            'English 101': {
+                // Past English course keeps the old generic categories
+                types: ['Assignments', 'Participation', 'Peer Reviews', 'Essays'],
+                weights: null
+            },
+            'English': {
+                // Current English 102 categories and weights
+                types: ['Assignments', 'Attendance', 'Participation Assignments', 'Papers', 'Imported Assignments'],
+                weights: { 'Participation Assignments': 30, 'Papers': 70 }
+            },
+            'Accounting': {
+                // Accounting is unweighted; categories only
+                types: ['Start Here - Orientation Assignments', 'Required Homework', 'Exams', 'Quizzes', 'Chapter Progress Reports', 'Discussion Topics', 'Course Project', 'Extra Credit'],
+                weights: null
+            },
+            'PE': {
+                types: ['Assignments'],
+                weights: null
+            },
+            'Music': {
+                types: ['Private Lesson', 'School', 'Practice'],
+                weights: null
+            }
+        };
+
+        let assignments = [];
+        let editingId = null;
+        let currentCourseTab = 'All';
+        let addMode = 'form';
+
+        function initializeApp() {
+            try {
+                const saved = localStorage.getItem('assignments');
+                if (saved) {
+                    assignments = JSON.parse(saved).map(a => ({
+                        ...a,
+                        dueDate: new Date(a.dueDate)
+                    }));
+                } else {
+                    assignments = [];
+                }
+            } catch (error) {
+                console.error('Error loading assignments:', error);
+                assignments = [];
+            }
+
+            // One-time migration: move old ENGL& 101 assignments off the main English tab
+            assignments = assignments.map(a => {
+                const canvasName = (a.canvasCourse || '').trim();
+                const nickname = (a.course || '').trim();
+                if (canvasName === 'ENGL& 101 English Composition I' || (!canvasName && nickname === 'English')) {
+                    return { ...a, course: 'English 101', canvasCourse: canvasName || 'ENGL& 101 English Composition I' };
+                }
+                return a;
+            });
+
+            setupSidebarCollapse();
+            setupCourseTabs();
+            setupFilterListeners();
+            setupCourseTypeBinding();
+            updateCourseTabVisibility();
+            renderAssignments();
+        }
+
+        function setupSidebarCollapse() {
+            const sidebar = document.getElementById('sidebar');
+            const collapseBtn = document.getElementById('collapseBtn');
+            collapseBtn.addEventListener('click', () => {
+                sidebar.classList.toggle('collapsed');
+                collapseBtn.innerHTML = sidebar.classList.contains('collapsed') ? '&raquo;' : '&laquo;';
+            });
+        }
+
+        function setupCourseTabs() {
+            const tabs = document.querySelectorAll('.course-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    currentCourseTab = tab.getAttribute('data-course');
+                    renderAssignments();
+                });
+            });
+        }
+
+        function setupFilterListeners() {
+            ['typeFilter', 'sortBy', 'statusFilter', 'timeFilter', 'courseScopeFilter'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.addEventListener('change', () => {
+                    updateCourseTabVisibility();
+                    renderAssignments();
+                });
+            });
+        }
+
+        function setupCourseTypeBinding() {
+            const courseSelect = document.getElementById('assignmentCourse');
+            const typeSelect = document.getElementById('assignmentType');
+            const gradeWeightGroup = document.getElementById('gradeWeightGroup');
+
+            courseSelect.addEventListener('change', () => {
+                const course = courseSelect.value;
+                populateTypeOptions(course, typeSelect);
+                const config = COURSE_CONFIG[course];
+                if (!config || !config.weights) {
+                    gradeWeightGroup.style.display = 'none';
+                    document.getElementById('gradeWeight').value = '';
+                } else {
+                    gradeWeightGroup.style.display = 'block';
+                    document.getElementById('gradeWeight').value = '';
+                }
+            });
+
+            typeSelect.addEventListener('change', () => {
+                const course = courseSelect.value;
+                const type = typeSelect.value;
+                const config = COURSE_CONFIG[course];
+                if (config && config.weights && config.weights[type] !== undefined) {
+                    document.getElementById('gradeWeight').value = config.weights[type];
+                }
+            });
+
+            const pasteCourse = document.getElementById('pasteCourse');
+            pasteCourse.addEventListener('change', () => {
+                // nothing else for now
+            });
+        }
+
+        function populateTypeOptions(course, selectEl) {
+            selectEl.innerHTML = '<option value="">Select Type</option>';
+            const config = COURSE_CONFIG[course];
+            if (config && config.types) {
+                config.types.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t;
+                    opt.textContent = t;
+                    selectEl.appendChild(opt);
+                });
+            }
+        }
+
+        function saveAssignmentsToStorage() {
+            localStorage.setItem('assignments', JSON.stringify(assignments));
+        }
+
+        function openAddModal() {
+            editingId = null;
+            document.getElementById('modalTitle').textContent = 'Add Assignment';
+            document.getElementById('assignmentForm').reset();
+            document.getElementById('pasteText').value = '';
+            document.getElementById('pastePreview').style.display = 'none';
+
+            setAddMode('form');
+
+            const courseSelect = document.getElementById('assignmentCourse');
+            const pasteCourse = document.getElementById('pasteCourse');
+            const gradeWeightGroup = document.getElementById('gradeWeightGroup');
+
+            if (currentCourseTab !== 'All') {
+                courseSelect.value = currentCourseTab;
+                courseSelect.disabled = true;
+                populateTypeOptions(currentCourseTab, document.getElementById('assignmentType'));
+                const config = COURSE_CONFIG[currentCourseTab];
+                if (!config || !config.weights) {
+                    gradeWeightGroup.style.display = 'none';
+                    document.getElementById('gradeWeight').value = '';
+                } else {
+                    gradeWeightGroup.style.display = 'block';
+                    document.getElementById('gradeWeight').value = '';
+                }
+
+                pasteCourse.value = currentCourseTab;
+                pasteCourse.disabled = true;
+            } else {
+                courseSelect.disabled = false;
+                courseSelect.value = '';
+                document.getElementById('assignmentType').innerHTML = '<option value="">Select Type</option>';
+                gradeWeightGroup.style.display = 'none';
+                document.getElementById('gradeWeight').value = '';
+
+                pasteCourse.disabled = false;
+                pasteCourse.value = '';
+            }
+
+            openModal('assignmentModal');
+        }
+
+        function setAddMode(mode) {
+            addMode = mode;
+            const formSection = document.getElementById('formModeSection');
+            const pasteSection = document.getElementById('pasteModeSection');
+            const modeFormBtn = document.getElementById('modeFormBtn');
+            const modePasteBtn = document.getElementById('modePasteBtn');
+
+            if (mode === 'form') {
+                formSection.classList.remove('hidden');
+                pasteSection.classList.add('hidden');
+                modeFormBtn.classList.add('active');
+                modePasteBtn.classList.remove('active');
+            } else {
+                formSection.classList.add('hidden');
+                pasteSection.classList.remove('hidden');
+                modeFormBtn.classList.remove('active');
+                modePasteBtn.classList.add('active');
+            }
+        }
+
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('show');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('show');
+        }
+
+        function saveAssignment(event) {
+            event.preventDefault();
+
+            if (addMode === 'form') {
+                saveAssignmentFromForm();
+            } else {
+                saveAssignmentsFromPaste();
+            }
+        }
+
+        function saveAssignmentFromForm() {
+            const title = document.getElementById('assignmentTitle').value.trim();
+            const course = document.getElementById('assignmentCourse').value;
+            const type = document.getElementById('assignmentType').value;
+            const dueVal = document.getElementById('dueDate').value;
+
+            if (!title || !course || !type || !dueVal) {
+                alert('Please fill in all required fields (Title, Course, Type, Due Date).');
+                return;
+            }
+
+            const assignment = {
+                id: editingId || Date.now(),
+                title: title,
+                course: course,
+                type: type,
+                dueDate: new Date(dueVal),
+                gradeWeight: document.getElementById('gradeWeight').value ? parseFloat(document.getElementById('gradeWeight').value) : 0,
+                maxScore: parseFloat(document.getElementById('maxScore').value) || 0,
+                description: document.getElementById('description').value,
+                timeEstimate: parseFloat(document.getElementById('timeEstimate').value) || 0,
+                difficulty: document.getElementById('difficulty').value,
+                completed: editingId ? assignments.find(a => a.id === editingId)?.completed : false
+            };
+
+            if (editingId) {
+                const index = assignments.findIndex(a => a.id === editingId);
+                if (index > -1) {
+                    assignments[index] = assignment;
+                }
+            } else {
+                assignments.push(assignment);
+            }
+
+            saveAssignmentsToStorage();
+            renderAssignments();
+            closeModal('assignmentModal');
+        }
+
+        function parsePastedAssignments(text, course) {
+            const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(b => b.length > 0);
+            const results = [];
+
+            blocks.forEach(block => {
+                const lines = block.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                if (lines.length < 3) return;
+
+                let titleLine = lines[0];
+                let titleMatch = titleLine.match(/\[([^\]]+)\]/);
+                const title = titleMatch ? titleMatch[1] : titleLine;
+
+                const type = lines[1];
+
+                let dueLine = null;
+                for (let i = 2; i < lines.length; i++) {
+                    if (/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i.test(lines[i]) && /by\s+\d{1,2}:\d{2}(am|pm)/i.test(lines[i])) {
+                        dueLine = lines[i];
+                        break;
+                    }
+                }
+                if (!dueLine) return;
+
+                const dueDate = parseCanvasDueLine(dueLine);
+
+                let maxScore = 0;
+                for (let i = lines.length - 1; i >= 0; i--) {
+                    const m = lines[i].match(/(\d+)\s*\/\s*(\d+)/);
+                    if (m) {
+                        maxScore = parseInt(m[2], 10);
+                        break;
+                    }
+                }
+
+                const normalizedType = mapCanvasTypeToCourseType(course, type);
+
+                const config = COURSE_CONFIG[course] || null;
+                let gradeWeight = 0;
+                if (config && config.weights && config.weights[normalizedType] !== undefined) {
+                    gradeWeight = config.weights[normalizedType];
+                }
+
+                results.push({
+                    id: Date.now() + Math.random(),
+                    title,
+                    course,
+                    type: normalizedType,
+                    dueDate,
+                    gradeWeight,
+                    maxScore,
+                    description: '',
+                    timeEstimate: 0,
+                    difficulty: '',
+                    completed: false
+                });
+            });
+
+            return results;
+        }
+
+        function mapCanvasTypeToCourseType(course, rawType) {
+            const trimmed = rawType.trim();
+            const config = COURSE_CONFIG[course];
+            if (!config || !config.types) return trimmed;
+
+            if (config.types.includes(trimmed)) return trimmed;
+
+            const lower = trimmed.toLowerCase();
+            for (const t of config.types) {
+                const tl = t.toLowerCase();
+                if (tl.includes('test') && lower.includes('test')) return t;
+                if (tl.includes('quiz') && lower.includes('quiz')) return t;
+                if (tl.includes('lab') && lower.includes('lab')) return t;
+                if (tl.includes('homework') && lower.includes('homework')) return t;
+                if (tl.includes('practice') && lower.includes('practice')) return t;
+                if (tl.includes('assessment') && lower.includes('assessment')) return t;
+                if (tl.includes('performance') && lower.includes('performance')) return t;
+            }
+
+            return trimmed;
+        }
+
+        function parseCanvasDueLine(line) {
+            const match = line.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b\s+(\d+)\s+by\s+(\d{1,2}):(\d{2})(am|pm)/i);
+            const now = new Date();
+            let year = now.getFullYear();
+            if (match) {
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const monthIndex = monthNames.findIndex(m => m.toLowerCase() === match[1].toLowerCase());
+                const day = parseInt(match[2], 10);
+                let hour = parseInt(match[3], 10);
+                const minute = parseInt(match[4], 10);
+                const ampm = match[5].toLowerCase();
+                if (ampm === 'pm' && hour !== 12) hour += 12;
+                if (ampm === 'am' && hour === 12) hour = 0;
+
+                const temp = new Date(year, monthIndex, day);
+                if (temp < now && (now.getMonth() - monthIndex) > 6) {
+                    year += 1;
+                }
+
+                return new Date(year, monthIndex, day, hour, minute);
+            }
+
+            return now;
+        }
+
+        function saveAssignmentsFromPaste() {
+            const pasteText = document.getElementById('pasteText').value.trim();
+            const courseSelect = document.getElementById('pasteCourse');
+            const course = courseSelect.value;
+
+            if (!course) {
+                alert('Please select a course for these assignments.');
+                return;
+            }
+
+            if (!pasteText) {
+                alert('Please paste at least one assignment block from Canvas.');
+                return;
+            }
+
+            const parsed = parsePastedAssignments(pasteText, course);
+            if (parsed.length === 0) {
+                alert('No assignments could be parsed. Check the format or try one assignment at a time.');
+                return;
+            }
+
+            parsed.forEach(a => assignments.push(a));
+            saveAssignmentsToStorage();
+            renderAssignments();
+            closeModal('assignmentModal');
+        }
+
+        function toggleAssignment(id) {
+            const assignment = assignments.find(a => String(a.id) === String(id));
+            if (assignment) {
+                assignment.completed = !assignment.completed;
+                assignment.lockCompletedFromCanvas = true;
+                saveAssignmentsToStorage();
+                renderAssignments();
+            }
+        }
+
+        function deleteAssignment(id) {
+            assignments = assignments.filter(a => a.id !== id);
+            saveAssignmentsToStorage();
+            renderAssignments();
+        }
+
+        function editAssignment(id) {
+            const assignment = assignments.find(a => a.id === id);
+            if (!assignment) return;
+
+            editingId = id;
+            document.getElementById('modalTitle').textContent = 'Edit Assignment';
+            setAddMode('form');
+
+            document.getElementById('assignmentTitle').value = assignment.title;
+            const courseSelect = document.getElementById('assignmentCourse');
+            const gradeWeightGroup = document.getElementById('gradeWeightGroup');
+
+            courseSelect.value = assignment.course;
+            courseSelect.disabled = false;
+            populateTypeOptions(assignment.course, document.getElementById('assignmentType'));
+            document.getElementById('assignmentType').value = assignment.type;
+
+            document.getElementById('dueDate').value = assignment.dueDate.toISOString().slice(0, 16);
+            const config = COURSE_CONFIG[assignment.course];
+            if (!config || !config.weights) {
+                gradeWeightGroup.style.display = 'none';
+            } else {
+                gradeWeightGroup.style.display = 'block';
+            }
+
+            document.getElementById('gradeWeight').value = assignment.gradeWeight || '';
+            document.getElementById('maxScore').value = assignment.maxScore || '';
+            document.getElementById('description').value = assignment.description || '';
+            document.getElementById('timeEstimate').value = assignment.timeEstimate || 0;
+            document.getElementById('difficulty').value = assignment.difficulty || '';
+
+            openModal('assignmentModal');
+        }
+
+        function calculatePriority(assignment) {
+            const now = new Date();
+            const daysUntilDue = (assignment.dueDate - now) / (1000 * 60 * 60 * 24);
+            const gradeImpact = assignment.gradeWeight || 0;
+
+            const urgency = daysUntilDue <= 1 ? 3 : daysUntilDue <= 3 ? 2 : daysUntilDue <= 7 ? 1 : 0;
+            const priority = (gradeImpact * 10) + (urgency * 5);
+
+            return priority;
+        }
+
+        function getFilteredAssignments() {
+            const typeFilter = document.getElementById('typeFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const timeFilter = document.getElementById('timeFilter').value;
+            const scopeSelect = document.getElementById('courseScopeFilter');
+            const scopeValue = scopeSelect ? scopeSelect.value : 'current-all';
+
+            return assignments.filter(a => {
+                // Nickname-based filter from tabs
+                if (currentCourseTab !== 'All' && a.course !== currentCourseTab) return false;
+
+                // Course scope filter using actual Canvas course names when available
+                const actualCourse = (a.canvasCourse || a.course || '').trim();
+                if (scopeValue && scopeValue !== 'all-all') {
+                    if (scopeValue === 'current-all') {
+                        if (actualCourse && CANVAS_COURSE_MAP[actualCourse] && CANVAS_COURSE_MAP[actualCourse].current === false) {
+                            return false;
+                        }
+                    } else {
+                        if (actualCourse !== scopeValue) return false;
+                    }
+                }
+
+                if (typeFilter && a.type !== typeFilter) return false;
+                if (statusFilter === 'incomplete' && a.completed) return false;
+                if (statusFilter === 'completed' && !a.completed) return false;
+
+                if (timeFilter) {
+                    const time = a.timeEstimate || 0;
+                    if (timeFilter === 'quick' && time >= 1) return false;
+                    if (timeFilter === 'medium' && (time < 1 || time > 3)) return false;
+                    if (timeFilter === 'long' && time <= 3) return false;
+                }
+                return true;
+            });
+        }
+
+        function getSortedAssignments(filtered) {
+            const sortBy = document.getElementById('sortBy').value;
+            const sorted = [...filtered];
+
+            switch (sortBy) {
+                case 'dueDate':
+                    sorted.sort((a, b) => a.dueDate - b.dueDate);
+                    break;
+                case 'gradeWeight':
+                    sorted.sort((a, b) => (b.gradeWeight || 0) - (a.gradeWeight || 0));
+                    break;
+                case 'course':
+                    sorted.sort((a, b) => a.course.localeCompare(b.course));
+                    break;
+                case 'priority':
+                    sorted.sort((a, b) => calculatePriority(b) - calculatePriority(a));
+                    break;
+            }
+
+            return sorted;
+        }
+
+        function formatDate(date) {
+            const now = new Date();
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            if (date.toDateString() === now.toDateString()) return 'Today';
+            if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function getPriorityLabel(priority) {
+            if (priority >= 50) return 'Critical';
+            if (priority >= 30) return 'High';
+            if (priority >= 15) return 'Medium';
+            return 'Low';
+        }
+
+        function renderAssignments() {
+            const filtered = getFilteredAssignments();
+            const sorted = getSortedAssignments(filtered);
+            const list = document.getElementById('assignmentsList');
+
+            const scope = currentCourseTab === 'All' ? assignments : assignments.filter(a => a.course === currentCourseTab);
+            document.getElementById('totalCount').textContent = scope.length;
+            document.getElementById('completedCount').textContent = scope.filter(a => a.completed).length;
+            document.getElementById('incompleteCount').textContent = scope.filter(a => !a.completed).length;
+
+            if (sorted.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div>No assignments found</div>
+                        <small style="margin-top: 8px; color: var(--text-secondary);">Try adjusting your filters or add a new assignment</small>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = sorted.map(a => {
+                const priority = calculatePriority(a);
+                const priorityLabel = getPriorityLabel(priority);
+                const daysUntilDue = (a.dueDate - new Date()) / (1000 * 60 * 60 * 24);
+                const isOverdue = daysUntilDue < 0;
+
+                return `
+                    <div class="assignment-card ${a.completed ? 'completed' : ''}">
+                        <div class="checkbox ${a.completed ? 'checked' : ''}" onclick="toggleAssignment(${a.id})"></div>
+                        <div class="assignment-content" style="flex: 1;">
+                            <div class="assignment-title">${a.title}</div>
+                            <div class="assignment-meta">
+                                <span class="badge badge-course">${a.course}</span>
+                                <span class="badge badge-type">${a.type}</span>
+                                <span class="badge badge-priority ${priorityLabel === 'Critical' || priorityLabel === 'High' ? 'high' : ''}">${priorityLabel}</span>
+                            </div>
+                            <div class="assignment-stats">
+                                <div class="stat">
+                                    <span class="stat-label">📅 Due:</span>
+                                    <span class="stat-value" style="color: ${isOverdue ? 'var(--danger)' : 'var(--primary)'};">${formatDate(a.dueDate)}</span>
+                                </div>
+                                ${a.gradeWeight ? `<div class="stat">
+                                    <span class="stat-label">⚖️ Weight:</span>
+                                    <span class="stat-value">${a.gradeWeight}%</span>
+                                </div>` : ''}
+                                ${a.maxScore ? `<div class="stat">
+                                    <span class="stat-label">📊 Points:</span>
+                                    <span class="stat-value">${a.maxScore}</span>
+                                </div>` : ''}
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" style="padding: 6px 12px;" onclick="editAssignment(${a.id})">✏️</button>
+                            <button class="btn btn-secondary" style="padding: 6px 12px; color: var(--danger);" onclick="deleteAssignment(${a.id})">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportData() {
+            const dataStr = JSON.stringify(assignments, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `assignments-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+                function normalizeCourseNameForImport(courseName) {
+            const name = (courseName || '').trim();
+            const lower = name.toLowerCase();
+            // Map Canvas music ensembles into the single Music course in the tracker
+            if (lower.includes('jazz') || lower.includes('wind symphony') || lower.includes('wind sym')) {
+                return 'Music';
+            }
+            return name;
+        }
+
+        function makeAssignmentKey(a) {
+            const course = (a.course || '').trim().toLowerCase();
+            const title = (a.title || '').trim().toLowerCase();
+            let d = a.dueDate instanceof Date ? a.dueDate : new Date(a.dueDate);
+            if (isNaN(d.getTime())) {
+                return `${course}||${title}||`;
+            }
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const dayString = `${year}-${month}-${day}`;
+            return `${course}||${title}||${dayString}`;
+        }
+
+        function normalizeImportedAssignment(a) {
+            const due = a.dueDate instanceof Date ? a.dueDate : new Date(a.dueDate);
+            const rawCourse = a.canvasCourse || a.course || '';
+            const mapped = mapCanvasCourseToNickname(rawCourse);
+            return {
+                ...a,
+                course: mapped.nickname || (a.course || ''),
+                canvasCourse: mapped.canonicalName || rawCourse || null,
+                dueDate: due
+            };
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedAssignments = JSON.parse(e.target.result);
+                    if (Array.isArray(importedAssignments)) {
+                        const indexByKey = new Map();
+                        assignments.forEach((a, idx) => {
+                            const key = makeAssignmentKey(a);
+                            if (!indexByKey.has(key)) {
+                                indexByKey.set(key, idx);
+                            }
+                        });
+
+                        importedAssignments.forEach(raw => {
+                            const norm = normalizeImportedAssignment(raw);
+                            const key = makeAssignmentKey(norm);
+                            if (indexByKey.has(key)) {
+                                const idx = indexByKey.get(key);
+                                const existing = assignments[idx] || {};
+
+                                // Decide completed status: respect manual overrides and never downgrade from true to false
+                                let completed = norm.completed;
+                                if (existing.lockCompletedFromCanvas) {
+                                    completed = existing.completed;
+                                } else if (existing.completed && !norm.completed) {
+                                    completed = existing.completed;
+                                }
+
+                                assignments[idx] = {
+                                    ...existing,
+                                    ...norm,
+                                    completed,
+                                    lockCompletedFromCanvas: !!existing.lockCompletedFromCanvas,
+                                    id: existing.id != null ? existing.id : norm.id
+                                };
+                            } else {
+                                assignments.push({
+                                    ...norm,
+                                    completed: !!norm.completed,
+                                    lockCompletedFromCanvas: false
+                                });
+                                indexByKey.set(key, assignments.length - 1);
+                            }
+                        });
+
+                        saveAssignmentsToStorage();
+                        renderAssignments();
+                        alert('✅ Data imported and merged successfully!');
+                    }
+                } catch (err) {
+                    console.error('Import error', err);
+                    alert('❌ Error importing data. Please make sure this is a valid assignments JSON file.');
+                }
+            };
+
+            reader.readAsText(file);
+        }
+
+
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
