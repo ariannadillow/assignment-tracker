@@ -348,20 +348,10 @@
     <!-- Course Manager Modal -->
     <div id="courseManagerModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header"><h2>Courses</h2><button class="close-btn" onclick="closeModal('courseManagerModal')">&times;</button></div>
-            <div id="courseManagerList"></div>
-            <div class="hint">No courses yet? Add one below. Each course has a nickname, optional Canvas names, assignment categories, and grade weights (leave weight blank for unweighted).</div>
-
-            <h3 style="margin:20px 0 8px;font-size:16px">Add course</h3>
-            <div class="form-group"><label for="newCourseName">Course nickname *</label><input type="text" id="newCourseName" placeholder="e.g., Math"></div>
-            <div class="form-group"><label for="newCourseCanvas">Canvas course name(s)</label><input type="text" id="newCourseCanvas" placeholder="Comma-separated, e.g. IB Analysis SL, IB Math"></div>
-            <div class="form-group">
-                <label for="newCourseCurrent">Status</label>
-                <select id="newCourseCurrent"><option value="true" selected>Current</option><option value="false">Past</option></select>
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-primary" onclick="addCourseFromForm()">+ Add course</button>
-            </div>
+            <div class="modal-header"><h2 id="courseManagerTitle">Courses</h2><button class="close-btn" onclick="closeModal('courseManagerModal')">&times;</button></div>
+            <div id="coursePickerView"><div class="hint" style="margin:0 0 12px">Choose a current course to edit.</div><div id="courseManagerList"></div></div>
+            <div id="courseEditorView" class="hidden"><button type="button" class="btn btn-secondary" style="padding:6px 10px;margin-bottom:12px" onclick="showCoursePicker()">← Back to courses</button><div id="courseEditorContent"></div></div>
+            <div id="courseAddView" class="hidden"><div class="hint" style="margin:0 0 14px">Create a new course. You can add categories and weights after it is created.</div><div class="form-group"><label for="newCourseName">Course nickname *</label><input type="text" id="newCourseName" placeholder="e.g., Math"></div><div class="form-group"><label for="newCourseCanvas">Canvas course name(s)</label><input type="text" id="newCourseCanvas" placeholder="Comma-separated, e.g. IB Analysis SL, IB Math"></div><div class="form-group"><label for="newCourseCurrent">Status</label><select id="newCourseCurrent"><option value="true" selected>Current</option><option value="false">Past</option></select></div><div class="modal-actions"><button type="button" class="btn btn-secondary" onclick="showCoursePicker()">Cancel</button><button type="button" class="btn btn-primary" onclick="addCourseFromForm()">+ Add course</button></div></div>
         </div>
     </div>
 
@@ -858,7 +848,7 @@
         function renderAssignments(){
             const filtered=getFilteredAssignments(); const sorted=getSortedAssignments(filtered);
             const list=document.getElementById('assignmentsList');
-            const scope = currentCourseTab==='All'?assignments:assignments.filter(a=>a.course===currentCourseTab);
+            const scope = currentCourseTab==='All' ? assignments.filter(a=>{ const c=courseByNickname(a.course); return config.showPastCourses || !c || c.current; }) : assignments.filter(a=>a.course===currentCourseTab);
             document.getElementById('totalCount').textContent=scope.length;
             document.getElementById('completedCount').textContent=scope.filter(a=>a.completed).length;
             document.getElementById('incompleteCount').textContent=scope.filter(a=>!a.completed).length;
@@ -898,45 +888,42 @@
         }
 
         // ---- course manager ----
-        function openCourseManager(focus){
-            renderCourseManagerList();
+        function openCourseManager(mode){
             openModal('courseManagerModal');
-            if (focus==='add') document.getElementById('newCourseName').focus();
+            if(mode==='add') showCourseAddForm(); else if(mode==='remove') showCoursePicker(true); else showCoursePicker(false);
         }
-        function renderCourseManagerList(){
-            const wrap=document.getElementById('courseManagerList');
-            if (!config.courses.length){ wrap.innerHTML='<div class="hint">No courses yet. Add your first course below.</div>'; return; }
-            wrap.innerHTML = config.courses.map((c,idx)=>`
-                <div class="course-manager-item">
-                    <div class="cm-head">
-                        <input class="cm-title" data-idx="${idx}" data-field="nickname" value="${escapeAttr(c.nickname)}" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px">
-                        <button class="btn btn-secondary" style="padding:5px 10px;color:var(--danger)" onclick="removeCourse(${idx})">Remove</button>
-                    </div>
-                    <div class="form-group"><label>Canvas name(s)</label>
-                        <input data-idx="${idx}" data-field="canvasNames" value="${escapeAttr((c.canvasNames||[]).join(', '))}" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
-                    </div>
-                    <div class="form-group"><label>Status</label>
-                        <select data-idx="${idx}" data-field="current"><option value="true" ${c.current?'selected':''}>Current</option><option value="false" ${!c.current?'selected':''}>Past</option></select>
-                    </div>
-                    <label style="font-size:13px;font-weight:600">Categories &amp; weights</label>
-                    <div id="cmTypes${idx}"></div>
-                    <button class="btn btn-secondary" style="padding:5px 10px;margin-top:6px" onclick="addTypeRow(${idx})">+ Add category</button>
-                </div>`).join('');
-            config.courses.forEach((c,idx)=>renderTypeRows(idx));
-            wrap.querySelectorAll('[data-field]').forEach(inp=>{
-                inp.addEventListener('change', ()=>updateCourseField(inp));
-            });
+        function visibleEditableCourses(){ return config.courses.filter(c=>c.current || config.showPastCourses); }
+        function setCourseManagerView(view){
+            document.getElementById('coursePickerView').classList.toggle('hidden',view!=='picker');
+            document.getElementById('courseEditorView').classList.toggle('hidden',view!=='editor');
+            document.getElementById('courseAddView').classList.toggle('hidden',view!=='add');
         }
+        function showCoursePicker(removeMode=false){
+            setCourseManagerView('picker');
+            document.getElementById('courseManagerTitle').textContent=removeMode?'Remove course':'Edit courses';
+            const wrap=document.getElementById('courseManagerList'), courses=visibleEditableCourses();
+            const hint=document.querySelector('#coursePickerView > .hint');
+            if(hint) hint.textContent=removeMode?'Choose a course to remove. Past courses are hidden unless Show past courses is on.':'Choose a course to edit. Past courses are hidden unless Show past courses is on.';
+            if(!courses.length){ wrap.innerHTML='<div class="hint">No visible courses yet.</div>'; return; }
+            wrap.innerHTML=courses.map(c=>{const idx=config.courses.indexOf(c); return `<button class="course-manager-item" style="width:100%;text-align:left;cursor:pointer;font:inherit" onclick="${removeMode?`removeCourse(${idx})`:`openCourseEditor(${idx})`}"><div class="cm-title">${escapeHtml(c.nickname)}</div><div class="hint" style="margin-top:4px">${(c.types||[]).length} categor${(c.types||[]).length===1?'y':'ies'}${c.current?'':' · Past'}</div></button>`;}).join('');
+        }
+        function showCourseAddForm(){
+            setCourseManagerView('add'); document.getElementById('courseManagerTitle').textContent='Add course';
+            document.getElementById('newCourseName').value=''; document.getElementById('newCourseCanvas').value=''; document.getElementById('newCourseCurrent').value='true';
+            setTimeout(()=>document.getElementById('newCourseName').focus(),0);
+        }
+        function openCourseEditor(idx){
+            const c=config.courses[idx]; if(!c) return;
+            setCourseManagerView('editor'); document.getElementById('courseManagerTitle').textContent='Edit course';
+            const wrap=document.getElementById('courseEditorContent');
+            wrap.innerHTML=`<div class="course-manager-item"><div class="cm-head"><input class="cm-title" data-idx="${idx}" data-field="nickname" value="${escapeAttr(c.nickname)}" style="flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:14px"><button class="btn btn-secondary" style="padding:5px 10px;color:var(--danger)" onclick="removeCourse(${idx})">Remove</button></div><div class="form-group"><label>Canvas name(s)</label><input data-idx="${idx}" data-field="canvasNames" value="${escapeAttr((c.canvasNames||[]).join(', '))}" style="width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px"></div><div class="form-group"><label>Status</label><select data-idx="${idx}" data-field="current"><option value="true" ${c.current?'selected':''}>Current</option><option value="false" ${!c.current?'selected':''}>Past</option></select></div><label style="font-size:13px;font-weight:600">Categories &amp; weights</label><div id="cmTypes${idx}"></div><button class="btn btn-secondary" style="padding:5px 10px;margin-top:6px" onclick="addTypeRow(${idx})">+ Add category</button></div>`;
+            renderTypeRows(idx); wrap.querySelectorAll('[data-field]').forEach(inp=>inp.addEventListener('change',()=>updateCourseField(inp)));
+        }
+        function renderCourseManagerList(){ showCoursePicker(false); }
         function renderTypeRows(idx){
-            const c=config.courses[idx]; const box=document.getElementById('cmTypes'+idx);
-            if(!box) return;
-            box.innerHTML = (c.types||[]).map((t,ti)=>`
-                <div class="type-row">
-                    <input data-idx="${idx}" data-ti="${ti}" data-tfield="name" value="${escapeAttr(t.name||'')}" placeholder="Category name">
-                    <input data-idx="${idx}" data-ti="${ti}" data-tfield="weight" type="number" min="0" max="100" step="0.1" value="${t.weight!=null?t.weight:''}" placeholder="%" style="max-width:80px">
-                    <button class="btn btn-secondary" style="padding:5px 8px;color:var(--danger)" onclick="removeType(${idx},${ti})">&times;</button>
-                </div>`).join('') || '<div class="hint">No categories yet.</div>';
-            box.querySelectorAll('[data-tfield]').forEach(inp=> inp.addEventListener('change', ()=>updateTypeField(inp)));
+            const c=config.courses[idx], box=document.getElementById('cmTypes'+idx); if(!box) return;
+            box.innerHTML=(c.types||[]).map((t,ti)=>`<div class="type-row"><input data-idx="${idx}" data-ti="${ti}" data-tfield="name" value="${escapeAttr(t.name||'')}" placeholder="Category name"><input data-idx="${idx}" data-ti="${ti}" data-tfield="weight" type="number" min="0" max="100" step="0.1" value="${t.weight!=null?t.weight:''}" placeholder="%" style="max-width:80px"><button class="btn btn-secondary" style="padding:5px 8px;color:var(--danger)" onclick="removeType(${idx},${ti})">&times;</button></div>`).join('')||'<div class="hint">No categories yet.</div>';
+            box.querySelectorAll('[data-tfield]').forEach(inp=>inp.addEventListener('change',()=>updateTypeField(inp)));
         }
         function updateCourseField(inp){
             const idx=+inp.dataset.idx; const f=inp.dataset.field; const c=config.courses[idx]; if(!c) return;
@@ -969,12 +956,12 @@
             config.courses.push({nickname:nick, canvasNames:canvas, current, types:[]});
             saveConfig(); refreshCourseUI(); renderAssignments();
             document.getElementById('newCourseName').value=''; document.getElementById('newCourseCanvas').value='';
-            renderCourseManagerList(); document.getElementById('newCourseName').focus();
+            showCoursePicker(false);
         }
         function removeCourse(idx){
             const c=config.courses[idx];
             if (!confirm(`Remove "${c.nickname}"? Assignments for this course will be kept but may no longer have matching categories.`)) return;
-            config.courses.splice(idx,1); saveConfig(); refreshCourseUI(); renderAssignments(); renderCourseManagerList();
+            config.courses.splice(idx,1); saveConfig(); refreshCourseUI(); renderAssignments(); showCoursePicker(false);
         }
 
         // ---- theme ----
