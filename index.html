@@ -235,13 +235,6 @@
                     <select id="typeFilter"><option value="">All Types</option></select>
                 </div>
                 <div class="filter-group">
-                    <label for="courseScopeFilter">Courses</label>
-                    <select id="courseScopeFilter">
-                        <option value="current-all" selected>Current courses (all)</option>
-                        <option value="all-all">All courses</option>
-                    </select>
-                </div>
-                <div class="filter-group">
                     <label for="sortBy">Sort By</label>
                     <select id="sortBy">
                         <option value="dueDate">Due Date</option>
@@ -280,6 +273,7 @@
                             <button class="edit-item" onclick="openCourseManager()">Edit courses</button>
                             <button class="edit-item" onclick="openCourseManager('add')">Add course</button>
                             <button class="edit-item" onclick="openCourseManager('remove')">Remove course</button>
+                            <button class="edit-item" id="pastCoursesToggle" onclick="togglePastCourses()">Show past courses</button>
                             <div class="edit-sep"></div>
                             <button class="edit-item" onclick="exportData()">Export data</button>
                             <button class="edit-item" onclick="document.getElementById('importFile').click()">Import data</button>
@@ -461,7 +455,8 @@
         const DEFAULT_THEME = { primary: '#7BA98B', accent: '#F5B8D1' };
 
         const DEFAULT_CONFIG = {
-            schemaVersion: 3,
+            schemaVersion: 4,
+            showPastCourses: false,
             courses: [],
             theme: { ...DEFAULT_THEME },
             google: { clientId: '', driveFileId: '', lastSync: '', rememberSignIn: false },
@@ -543,14 +538,21 @@
         }
 
         // ---- rendering: course tabs + selects ----
+        function visibleCourses(){
+            return config.courses.filter(c=>c.current || config.showPastCourses);
+        }
         function renderCourseTabs() {
             const wrap = document.getElementById('courseTabs');
-            const tabs = ['All', ...config.courses.map(c=>c.nickname)];
+            if(!wrap) return;
+            const visible=visibleCourses();
+            if(currentCourseTab!=='All' && !visible.some(c=>c.nickname===currentCourseTab)) currentCourseTab='All';
+            const tabs = ['All', ...visible.map(c=>c.nickname)];
             wrap.innerHTML = tabs.map(n => `<button class="course-tab ${n===currentCourseTab?'active':''}" data-course="${escapeAttr(n)}">${escapeHtml(n)}</button>`).join('');
             wrap.querySelectorAll('.course-tab').forEach(tab => {
                 tab.addEventListener('click', () => {
                     currentCourseTab = tab.getAttribute('data-course');
                     renderCourseTabs();
+                    populateTypeFilter();
                     renderAssignments();
                 });
             });
@@ -567,32 +569,34 @@
         }
         function populateTypeFilter() {
             const sel = document.getElementById('typeFilter');
+            if(!sel) return;
             const cur = sel.value;
-            const all = new Set();
-            config.courses.forEach(c => (c.types||[]).forEach(t => all.add(t.name)));
-            sel.innerHTML = '<option value="">All Types</option>' + [...all].map(t=>`<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
-            sel.value = cur;
+            const courses=currentCourseTab==='All' ? visibleCourses() : config.courses.filter(c=>c.nickname===currentCourseTab);
+            const types=[...new Set(courses.flatMap(c=>(c.types||[]).map(t=>t.name)))].sort((a,b)=>a.localeCompare(b));
+            sel.innerHTML = '<option value="">All Types</option>' + types.map(t=>`<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
+            sel.value=[...sel.options].some(o=>o.value===cur) ? cur : '';
         }
-        function populateCourseScopeFilter() {
-            const sel = document.getElementById('courseScopeFilter');
-            const cur = sel.value;
-            let html = '<option value="current-all">Current courses (all)</option><option value="all-all">All courses</option>';
-            const curCourses = config.courses.filter(c=>c.current);
-            const pastCourses = config.courses.filter(c=>!c.current);
-            if (curCourses.length) { html += '<optgroup label="Current courses">'; curCourses.forEach(c=>{ const names=(c.canvasNames||[]); if(names.length){ names.forEach(n=> html+=`<option value="${escapeAttr(n)}">${escapeHtml(n)} (${escapeHtml(c.nickname)})</option>`);} else { html+=`<option value="${escapeAttr(c.nickname)}">${escapeHtml(c.nickname)}</option>`; } }); html+='</optgroup>'; }
-            if (pastCourses.length) { html += '<optgroup label="Past courses">'; pastCourses.forEach(c=>{ const names=(c.canvasNames||[]); if(names.length){ names.forEach(n=> html+=`<option value="${escapeAttr(n)}">${escapeHtml(n)} (${escapeHtml(c.nickname)}, past)</option>`);} else { html+=`<option value="${escapeAttr(c.nickname)}">${escapeHtml(c.nickname)} (past)</option>`; } }); html+='</optgroup>'; }
-            sel.innerHTML = html;
-            sel.value = cur;
+        function updatePastCoursesToggle(){
+            const btn=document.getElementById('pastCoursesToggle');
+            if(btn) btn.textContent=config.showPastCourses?'Hide past courses':'Show past courses';
+        }
+        function togglePastCourses(){
+            config.showPastCourses=!config.showPastCourses;
+            saveConfig();
+            if(!config.showPastCourses && currentCourseTab!=='All'){
+                const selected=config.courses.find(c=>c.nickname===currentCourseTab);
+                if(selected && !selected.current) currentCourseTab='All';
+            }
+            refreshCourseUI();
+            renderAssignments();
         }
         function refreshCourseUI() {
             updateCollapsedWidth();
             renderCourseTabs();
             renderCourseSelects();
             populateTypeFilter();
-            populateCourseScopeFilter();
-            updateCourseTabVisibility();
+            updatePastCoursesToggle();
         }
-
         function updateCollapsedWidth() {
             const names = config.courses.map(c => c.nickname || ''); names.push('All');
             const longest = Math.max(3, ...names.map(n => n.length));
@@ -625,9 +629,9 @@
             });
         }
         function setupFilterListeners() {
-            ['typeFilter','sortBy','statusFilter','timeFilter','courseScopeFilter'].forEach(id => {
+            ['typeFilter','sortBy','statusFilter','timeFilter'].forEach(id => {
                 const el = document.getElementById(id); if (!el) return;
-                el.addEventListener('change', () => { updateCourseTabVisibility(); renderAssignments(); });
+                el.addEventListener('change', () => { renderAssignments(); });
             });
         }
         function setupCourseTypeBinding() {
@@ -644,18 +648,6 @@
             typeSelect.addEventListener('change', () => {
                 const v = weightForType(courseSelect.value, typeSelect.value);
                 if (v) document.getElementById('gradeWeight').value = v;
-            });
-        }
-
-        function updateCourseTabVisibility() {
-            const scope = document.getElementById('courseScopeFilter');
-            const val = scope ? scope.value : 'current-all';
-            const cur = currentNicknames();
-            document.querySelectorAll('.course-tab').forEach(tab => {
-                const nick = tab.getAttribute('data-course');
-                if (nick === 'All') { tab.style.display='inline-flex'; return; }
-                if (val === 'all-all') { tab.style.display='inline-flex'; return; }
-                tab.style.display = cur.has(nick) ? 'inline-flex' : 'none';
             });
         }
 
@@ -831,18 +823,19 @@
             const typeFilter=document.getElementById('typeFilter').value;
             const statusFilter=document.getElementById('statusFilter').value;
             const timeFilter=document.getElementById('timeFilter').value;
-            const scope=document.getElementById('courseScopeFilter'); const val=scope?scope.value:'current-all';
             return assignments.filter(a=>{
-                if (currentCourseTab!=='All' && a.course!==currentCourseTab) return false;
-                const actualCourse=(a.canvasCourse||a.course||'').trim();
-                if (val && val!=='all-all'){
-                    if (val==='current-all'){ if(actualCourse){ const m=canvasMapFor(actualCourse); if(!m.current) return false; } }
-                    else { if (actualCourse!==val) return false; }
+                const course=courseByNickname(a.course);
+                if(!config.showPastCourses && course && !course.current) return false;
+                if(currentCourseTab!=='All' && a.course!==currentCourseTab) return false;
+                if(typeFilter && a.type!==typeFilter) return false;
+                if(statusFilter==='incomplete' && a.completed) return false;
+                if(statusFilter==='completed' && !a.completed) return false;
+                if(timeFilter){
+                    const t=a.timeEstimate||0;
+                    if(timeFilter==='quick' && t>=1) return false;
+                    if(timeFilter==='medium' && (t<1||t>3)) return false;
+                    if(timeFilter==='long' && t<=3) return false;
                 }
-                if (typeFilter && a.type!==typeFilter) return false;
-                if (statusFilter==='incomplete'&&a.completed) return false;
-                if (statusFilter==='completed'&&!a.completed) return false;
-                if (timeFilter){ const t=a.timeEstimate||0; if(timeFilter==='quick'&&t>=1) return false; if(timeFilter==='medium'&&(t<1||t>3)) return false; if(timeFilter==='long'&&t<=3) return false; }
                 return true;
             });
         }
@@ -1213,62 +1206,19 @@
         function signInWithGoogle(){
             const clientId=config.google.clientId;
             if(!clientId){ alert('Enter and save your Google OAuth Client ID first.'); openGoogleModal(); return; }
-
-            const statusEl=document.getElementById('googleStatus');
-            const signInBtn=document.getElementById('googleSignInBtn');
-            if(statusEl) statusEl.textContent='Opening Google sign-in...';
-            if(signInBtn) signInBtn.disabled=true;
-
-            let callbackReceived=false;
-            const timeoutId=setTimeout(()=>{
-                if(!callbackReceived){
-                    if(statusEl) statusEl.textContent='Google did not return a sign-in result after 20 seconds. Close any Google popup, allow popups for this site, refresh the page, and try again.';
-                    if(signInBtn) signInBtn.disabled=false;
-                }
-            },20000);
-
+            const statusEl=document.getElementById('googleStatus'); if(statusEl) statusEl.textContent='Signing in...';
             loadGsi().then(()=>{
-                if(statusEl) statusEl.textContent='Choose your Google account in the popup...';
-                const tc=google.accounts.oauth2.initTokenClient({
-                    client_id:clientId,
-                    scope:DRIVE_SCOPE,
-                    callback:async resp=>{
-                        callbackReceived=true;
-                        clearTimeout(timeoutId);
-                        if(resp.error){
-                            if(statusEl) statusEl.textContent='Sign-in error: '+(resp.error_description||resp.error);
-                            if(signInBtn) signInBtn.disabled=false;
-                            return;
-                        }
-                        try{
-                            if(statusEl) statusEl.textContent='Google sign-in worked. Connecting to your Drive backup...';
-                            googleToken=resp.access_token;
-                            googleSignedIn=true;
-                            config.google.rememberSignIn=true;
-                            _suppressSync=true; saveConfig(); _suppressSync=false;
-                            const pulled=await pullFromDrive();
-                            if(!pulled){
-                                if(statusEl) statusEl.textContent='No previous backup found. Creating a private Drive backup...';
-                                await pushToDrive();
-                            }
-                            if(statusEl) statusEl.textContent='Signed in. '+(pulled?'Synced from your account.':'Uploaded local data.');
-                            updateGoogleStatus();
-                        }catch(error){
-                            console.error('Google sign-in sync failed:',error);
-                            googleToken=null;
-                            googleSignedIn=false;
-                            if(statusEl) statusEl.textContent='Google sign-in worked, but Drive sync failed: '+(error.message||'Unknown error.');
-                        }finally{
-                            if(signInBtn) signInBtn.disabled=false;
-                        }
-                    }
-                });
-                tc.requestAccessToken({prompt:'select_account'});
-            }).catch(error=>{
-                clearTimeout(timeoutId);
-                if(statusEl) statusEl.textContent='Could not start Google sign-in: '+error.message;
-                if(signInBtn) signInBtn.disabled=false;
-            });
+                const tc=google.accounts.oauth2.initTokenClient({client_id:clientId, scope:DRIVE_SCOPE+' '+CAL_SCOPE, callback:async resp=>{
+                    if(resp.error){ if(statusEl) statusEl.textContent='Sign-in error: '+(resp.error_description||resp.error); return; }
+                    googleToken=resp.access_token; googleSignedIn=true; config.google.rememberSignIn=true;
+                    _suppressSync=true; saveConfig(); _suppressSync=false;
+                    const pulled=await pullFromDrive();
+                    if(!pulled){ await pushToDrive(); }
+                    if(statusEl) statusEl.textContent='Signed in. '+(pulled?'Synced from your account.':'Uploaded local data.');
+                    updateGoogleStatus();
+                }});
+                tc.requestAccessToken();
+            }).catch(e=>{ if(statusEl) statusEl.textContent=e.message; });
         }
         function signOutGoogle(){
             if(googleToken && window.google && google.accounts.oauth2){ try{ google.accounts.oauth2.revoke(googleToken); }catch(e){} }
