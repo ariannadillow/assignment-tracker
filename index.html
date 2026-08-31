@@ -203,6 +203,21 @@
         body.viewer .assignment-card .btn { display: none !important; }
         body.viewer .assignment-card { padding-left: 16px; }
 
+
+        .calendar-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+        .calendar-toolbar h3 { margin:0; font-size:20px; text-align:center; }
+        .calendar-weekdays, .planner-calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); }
+        .calendar-weekdays div { padding:7px 4px; text-align:center; font-size:12px; font-weight:700; color:var(--text-secondary); }
+        .planner-calendar-grid { border-top:1px solid var(--border); border-left:1px solid var(--border); }
+        .planner-calendar-day { min-height:115px; padding:6px; background:#fff; border-right:1px solid var(--border); border-bottom:1px solid var(--border); overflow:hidden; }
+        .planner-calendar-day.muted { background:var(--bg); opacity:.55; }
+        .planner-calendar-day.today { box-shadow:inset 0 0 0 2px var(--primary); }
+        .planner-calendar-date { font-size:13px; font-weight:700; margin-bottom:5px; }
+        .planner-calendar-event { display:block; width:100%; border:0; border-radius:5px; background:var(--accent); color:#593445; text-align:left; padding:4px 5px; margin:3px 0; font:inherit; font-size:11px; line-height:1.25; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .planner-calendar-event:hover { filter:brightness(.96); }
+        .planner-calendar-event.completed { background:var(--success); color:#3a5a44; opacity:.72; }
+        @media (max-width: 650px) { .planner-calendar-day { min-height:80px; padding:4px; } .planner-calendar-event { font-size:9px; padding:3px; } .calendar-toolbar h3 { font-size:16px; } .calendar-toolbar .btn { padding:7px 9px; font-size:12px; } }
+
         @media (max-width: 768px) {
             body { font-size: 14px; }
             .container { flex-direction: column; height: auto; }
@@ -281,7 +296,8 @@
                             <button class="edit-item" onclick="clearAllData()">Clear all data</button>
                             <div class="edit-sep"></div>
                             <button class="edit-item" onclick="openThemeModal()">Edit color theme</button>
-                            <button class="edit-item" onclick="openCalendarModal()">Google Calendar</button>
+                            <button class="edit-item" onclick="openPlannerCalendar()">📅 Calendar</button>
+                            <button class="edit-item" onclick="downloadICS()">📁 Download calendar file (.ics)</button>
                             <div class="edit-sep"></div>
                             <button class="edit-item" onclick="openGoogleModal()">Sign in with Google</button>
                             <button class="edit-item" onclick="openShareModal()">Share view</button>
@@ -378,29 +394,14 @@
         </div>
     </div>
 
-    <!-- Google Calendar Modal -->
-    <div id="calendarModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header"><h2>Google Calendar</h2><button class="close-btn" onclick="closeModal('calendarModal')">&times;</button></div>
-
-            <h3 style="font-size:16px;margin-bottom:6px">Quick: download calendar file</h3>
-            <div class="hint" style="margin-top:0;margin-bottom:12px">No setup needed. Downloads a <strong>.ics</strong> file you can import into Google Calendar (or any calendar app) with all assignments that have due dates.</div>
-            <button class="btn btn-secondary" onclick="downloadICS()">&#128193; Download .ics file</button>
-
-            <div style="height:1px;background:var(--border);margin:20px 0"></div>
-
-            <h3 style="font-size:16px;margin-bottom:6px">Direct sync</h3>
-            <div class="hint" style="margin-top:0;margin-bottom:12px">Sync assignments with due dates to your Google Calendar. You will choose and authorize your own Google account when you click Sync now.</div>
-            <div class="form-group">
-                <label for="gcalCalendarId">Calendar</label>
-                <input type="text" id="gcalCalendarId" placeholder="primary" value="primary">
-                <div class="hint">Use <code>primary</code> for your default calendar, or enter a calendar ID.</div>
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="saveCalendarSettings()">Save calendar</button>
-                <button type="button" class="btn btn-primary" id="gcalSyncBtn" onclick="syncToGoogleCalendar()">Sync now</button>
-            </div>
-            <div class="hint" id="gcalStatus" style="margin-top:10px"></div>
+    <!-- Planner Calendar Modal -->
+    <div id="plannerCalendarModal" class="modal">
+        <div class="modal-content" style="max-width:900px">
+            <div class="modal-header"><h2>📅 Assignment Calendar</h2><button class="close-btn" onclick="closeModal('plannerCalendarModal')">&times;</button></div>
+            <div class="calendar-toolbar"><button class="btn btn-secondary" onclick="changePlannerMonth(-1)">← Previous</button><h3 id="plannerMonthLabel"></h3><button class="btn btn-secondary" onclick="changePlannerMonth(1)">Next →</button></div>
+            <div class="calendar-weekdays"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
+            <div id="plannerCalendarGrid" class="planner-calendar-grid"></div>
+            <div class="hint" style="margin-top:12px">Shows current-course assignments. Click an assignment to edit it. Completed assignments have a ✓.</div>
         </div>
     </div>
 
@@ -443,7 +444,7 @@
             courses: [],
             theme: { ...DEFAULT_THEME },
             google: { clientId: '', driveFileId: '', lastSync: '', rememberSignIn: false },
-            calendar: { calendarId: 'primary', eventMap: {}, syncMap: {} }
+            calendar: {}
         };
 
         const STORAGE_CONFIG = 'at.config';
@@ -1019,7 +1020,8 @@
         function icsDate(d){ return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.getUTCDate())+'T'+pad(d.getUTCHours())+pad(d.getUTCMinutes())+pad(d.getUTCSeconds())+'Z'; }
         function icsEscape(s){ return String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
         function downloadICS(){
-            const withDue=assignments.filter(a=>a.dueDate && !isNaN(a.dueDate));
+            const currentCourses=new Set(config.courses.filter(c=>c.current).map(c=>c.nickname));
+            const withDue=assignments.filter(a=>a.dueDate && !isNaN(a.dueDate) && currentCourses.has(a.course));
             if(!withDue.length){ alert('No assignments with due dates to export.'); return; }
             const end=new Date(withDue[0].dueDate); end.setMinutes(end.getMinutes()+30);
             let ics='BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//AssignmentTracker//EN\n';
@@ -1041,83 +1043,48 @@
             URL.revokeObjectURL(url);
         }
 
-        // ---- Google Calendar: direct OAuth sync ----
-        function openCalendarModal(){
-            document.getElementById('gcalCalendarId').value=config.calendar.calendarId||'primary';
-            const synced=Object.keys(config.calendar.eventMap||{}).length;
-            document.getElementById('gcalStatus').textContent=synced? (synced+' assignment(s) already synced.'):'Not synced yet.';
-            openModal('calendarModal');
+        // ---- In-app calendar ----
+        let plannerCalendarDate=new Date();
+        plannerCalendarDate=new Date(plannerCalendarDate.getFullYear(),plannerCalendarDate.getMonth(),1);
+        function openPlannerCalendar(){
+            plannerCalendarDate=new Date(plannerCalendarDate.getFullYear(),plannerCalendarDate.getMonth(),1);
+            renderPlannerCalendar();
+            openModal('plannerCalendarModal');
         }
-        function saveCalendarSettings(){
-            config.calendar.calendarId=document.getElementById('gcalCalendarId').value.trim()||'primary';
-            saveConfig();
-            document.getElementById('gcalStatus').textContent='Calendar saved. Click Sync now to sync assignments.';
+        function changePlannerMonth(amount){
+            plannerCalendarDate=new Date(plannerCalendarDate.getFullYear(),plannerCalendarDate.getMonth()+amount,1);
+            renderPlannerCalendar();
         }
-        function loadGsi(){
-            return new Promise((resolve,reject)=>{
-                if (window.google && window.google.accounts && window.google.accounts.oauth2) return resolve();
-                const s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client'; s.async=true; s.defer=true;
-                s.onload=resolve; s.onerror=()=>reject(new Error('Could not load Google Identity Services.'));
-                document.head.appendChild(s);
-            });
-        }
-        function assignmentCalendarFingerprint(a){
-            const due=new Date(a.dueDate).toISOString();
-            return JSON.stringify({title:a.title,course:a.course,due,description:a.description||'',completed:!!a.completed});
-        }
-        function syncToGoogleCalendar(){
-            const clientId=GOOGLE_CLIENT_ID;
-            const today=new Date(); today.setHours(0,0,0,0);
+        function sameCalendarDay(a,b){ return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
+        function renderPlannerCalendar(){
+            const label=document.getElementById('plannerMonthLabel');
+            const grid=document.getElementById('plannerCalendarGrid');
+            if(!label||!grid) return;
+            const year=plannerCalendarDate.getFullYear(), month=plannerCalendarDate.getMonth();
+            label.textContent=plannerCalendarDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+            const first=new Date(year,month,1), days=new Date(year,month+1,0).getDate();
             const currentCourses=new Set(config.courses.filter(c=>c.current).map(c=>c.nickname));
-            const eligible=assignments.filter(a=>a.dueDate && !isNaN(a.dueDate) && currentCourses.has(a.course) && new Date(a.dueDate)>=today);
-            const statusEl=document.getElementById('gcalStatus');
-            const btn=document.getElementById('gcalSyncBtn'); if(btn) btn.disabled=true;
-            const eventMap=config.calendar.eventMap||{};
-            const syncMap=config.calendar.syncMap||{};
-            const changed=eligible.filter(a=>!eventMap[String(a.id)] || syncMap[String(a.id)]!==assignmentCalendarFingerprint(a));
-            if(!changed.length){
-                if(statusEl) statusEl.textContent=eligible.length?'Up to date. No current assignment changes need syncing.':'No current assignments with today-or-later due dates to sync.';
-                if(btn) btn.disabled=false;
-                return;
+            const visible=assignments.filter(a=>a.dueDate&&!isNaN(a.dueDate)&&currentCourses.has(a.course));
+            const today=new Date();
+            let html='';
+            for(let i=0;i<first.getDay();i++) html+='<div class="planner-calendar-day muted"></div>';
+            for(let day=1;day<=days;day++){
+                const date=new Date(year,month,day);
+                const due=visible.filter(a=>sameCalendarDay(new Date(a.dueDate),date));
+                html+='<div class="planner-calendar-day '+(sameCalendarDay(date,today)?'today':'')+'"><div class="planner-calendar-date">'+day+'</div>';
+                html+=due.map(a=>'<button class="planner-calendar-event '+(a.completed?'completed':'')+'" title="Edit '+escapeAttr(a.title)+'" onclick="openCalendarAssignment('+JSON.stringify(String(a.id))+')">'+(a.completed?'✓ ':'')+escapeHtml(a.course)+' — '+escapeHtml(a.title)+'</button>').join('');
+                html+='</div>';
             }
-            const doSync=(token)=>{
-                statusEl.textContent='Syncing '+changed.length+' update'+(changed.length===1?'':'s')+'...';
-                (async()=>{
-                    let ok=0,fail=0;
-                    for(const a of changed){
-                        const evId=eventMap[String(a.id)];
-                        const url='https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(config.calendar.calendarId||'primary')+'/events'+(evId?'/'+encodeURIComponent(evId):'');
-                        const start=new Date(a.dueDate); const finish=new Date(start); finish.setMinutes(finish.getMinutes()+30);
-                        const body={summary:(a.completed?'✓ ':'')+a.course+' - '+a.title,start:{dateTime:start.toISOString()},end:{dateTime:finish.toISOString()},description:a.description||''};
-                        try{
-                            const r=await fetch(url,{method:evId?'PUT':'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
-                            if(r.ok){
-                                const j=await r.json();
-                                if(j.id) eventMap[String(a.id)]=j.id;
-                                syncMap[String(a.id)]=assignmentCalendarFingerprint(a);
-                                ok++;
-                            }else{ const j=await r.json().catch(()=>({})); console.warn('Calendar event sync failed',j); fail++; }
-                        }catch(err){ console.warn(err); fail++; }
-                    }
-                    config.calendar.eventMap=eventMap; config.calendar.syncMap=syncMap;
-                    _suppressSync=true; saveConfig(); _suppressSync=false;
-                    statusEl.textContent='Done: '+ok+' update'+(ok===1?'':'s')+' synced'+(fail?(', '+fail+' failed'):'')+'.';
-                    if(btn) btn.disabled=false;
-                })();
-            };
-            if(googleSignedIn && googleToken){ doSync(googleToken); return; }
-            loadGsi().then(()=>{
-                const tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/calendar.events',callback:resp=>{
-                    if(resp.error){ statusEl.textContent='Sign-in error: '+(resp.error_description||resp.error); if(btn) btn.disabled=false; return; }
-                    doSync(resp.access_token);
-                }});
-                tokenClient.requestAccessToken({prompt:'select_account'});
-            }).catch(err=>{ statusEl.textContent=err.message; if(btn) btn.disabled=false; });
+            const total=first.getDay()+days; for(let i=total;i<42;i++) html+='<div class="planner-calendar-day muted"></div>';
+            grid.innerHTML=html;
+        }
+        function openCalendarAssignment(id){
+            closeModal('plannerCalendarModal');
+            editAssignment(id);
         }
 
         // ---- Google sign-in + Drive sync (cross-device) ----
         const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
-        const CAL_SCOPE='https://www.googleapis.com/auth/calendar.events';
         const DRIVE_FILE='assignment-tracker.json';
         let googleToken=null, googleSignedIn=false, _pushTimer=null, _suppressSync=false;
 
@@ -1130,7 +1097,7 @@
             if(googleSignedIn){ const ls=config.google.lastSync; el.textContent='Signed in. '+(ls?('Last synced '+new Date(ls).toLocaleString()):'Ready to sync.'); }
             else el.textContent='Not signed in. Click Sign in with Google to sync across devices.';
         }
-        function driveBlob(){ return JSON.stringify({config:{courses:config.courses, theme:config.theme, google:{driveFileId:config.google.driveFileId}, calendar:config.calendar}, assignments:assignments.map(a=>({...a, dueDate:a.dueDate.toISOString?a.dueDate.toISOString():a.dueDate}))}); }
+        function driveBlob(){ return JSON.stringify({config:{courses:config.courses, theme:config.theme, google:{driveFileId:config.google.driveFileId}}, assignments:assignments.map(a=>({...a, dueDate:a.dueDate.toISOString?a.dueDate.toISOString():a.dueDate}))}); }
         async function findDriveFile(token){
             const r=await fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q='+encodeURIComponent("name='"+DRIVE_FILE+"'")+'&fields=files(id,name,modifiedTime)',{headers:{'Authorization':'Bearer '+token}});
             if(!r.ok) throw new Error('Drive list failed: '+r.status);
