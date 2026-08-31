@@ -389,24 +389,18 @@
 
             <div style="height:1px;background:var(--border);margin:20px 0"></div>
 
-            <h3 style="font-size:16px;margin-bottom:6px">Advanced: direct sync</h3>
-            <div class="hint" style="margin-top:0;margin-bottom:12px">Connects directly to your Google Calendar and pushes assignments as events. Requires a Google Cloud OAuth Client ID (see the help link below).</div>
+            <h3 style="font-size:16px;margin-bottom:6px">Direct sync</h3>
+            <div class="hint" style="margin-top:0;margin-bottom:12px">Sync assignments with due dates to your Google Calendar. You will choose and authorize your own Google account when you click Sync now.</div>
             <div class="form-group">
-                <label for="gcalClientId">Google OAuth Client ID</label>
-                <input type="text" id="gcalClientId" placeholder="xxxxx.apps.googleusercontent.com">
-            </div>
-            <div class="form-group">
-                <label for="gcalCalendarId">Calendar ID</label>
+                <label for="gcalCalendarId">Calendar</label>
                 <input type="text" id="gcalCalendarId" placeholder="primary" value="primary">
-                <div class="hint">Use <code>primary</code> for your default calendar, or a calendar email address.</div>
+                <div class="hint">Use <code>primary</code> for your default calendar, or enter a calendar ID.</div>
             </div>
-            <div class="hint" id="gcalOrigin"></div>
             <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="saveCalendarSettings()">Save settings</button>
+                <button type="button" class="btn btn-secondary" onclick="saveCalendarSettings()">Save calendar</button>
                 <button type="button" class="btn btn-primary" id="gcalSyncBtn" onclick="syncToGoogleCalendar()">Sync now</button>
             </div>
             <div class="hint" id="gcalStatus" style="margin-top:10px"></div>
-            <a href="https://support.google.com/cloud/answer/6158849" target="_blank" rel="noopener" class="hint" style="display:inline-block;margin-top:10px">How to create an OAuth Client ID &#8599;</a>
         </div>
     </div>
 
@@ -414,16 +408,12 @@
     <div id="googleModal" class="modal">
         <div class="modal-content">
             <div class="modal-header"><h2>Sign in with Google</h2><button class="close-btn" onclick="closeModal('googleModal')">&times;</button></div>
-            <div class="hint" style="margin-bottom:12px">Sign in to sync your courses, assignments, theme, and calendar settings across all your devices. Your data is stored privately in your own Google Drive (app data folder) — only you can see it. Requires a one-time Google OAuth Client ID.</div>
-            <div class="form-group"><label for="googleClientId">Google OAuth Client ID</label><input type="text" id="googleClientId" placeholder="xxxxx.apps.googleusercontent.com"></div>
-            <div class="hint" id="googleOrigin"></div>
+            <div class="hint" style="margin-bottom:12px">Sign in with your Google account to privately sync your courses, assignments, theme, and settings across your devices. Your data is stored in your own Google Drive app-data folder and is not shared with other Pencil Planner users.</div>
             <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="saveGoogleSettings()">Save client ID</button>
-                <button type="button" class="btn btn-primary" id="googleSignInBtn" onclick="signInWithGoogle()">Sign in</button>
+                <button type="button" class="btn btn-primary" id="googleSignInBtn" onclick="signInWithGoogle()">Sign in with Google</button>
                 <button type="button" class="btn btn-secondary" onclick="signOutGoogle()">Sign out</button>
             </div>
             <div class="hint" id="googleStatus" style="margin-top:10px"></div>
-            <a href="https://support.google.com/cloud/answer/6158849" target="_blank" rel="noopener" class="hint" style="display:inline-block;margin-top:10px">How to create an OAuth Client ID &#8599;</a>
         </div>
     </div>
 
@@ -443,6 +433,8 @@
     </div>
 
     <script>
+        const GOOGLE_CLIENT_ID = '57171930474-uqpm500v4e04r8v1jmr5qfsiv5f1pjkv.apps.googleusercontent.com';
+
         const DEFAULT_THEME = { primary: '#7BA98B', accent: '#F5B8D1' };
 
         const DEFAULT_CONFIG = {
@@ -466,6 +458,7 @@
         };
 
         let config = loadConfig();
+        config.google.clientId = GOOGLE_CLIENT_ID;
         let assignments = loadAssignments();
         let editingId = null;
         let currentCourseTab = 'All';
@@ -1050,18 +1043,15 @@
 
         // ---- Google Calendar: direct OAuth sync ----
         function openCalendarModal(){
-            document.getElementById('gcalClientId').value=config.calendar.googleClientId||'';
             document.getElementById('gcalCalendarId').value=config.calendar.calendarId||'primary';
-            document.getElementById('gcalOrigin').textContent='Authorized JavaScript origin to add in Google Cloud: '+window.location.origin;
             const synced=Object.keys(config.calendar.eventMap||{}).length;
             document.getElementById('gcalStatus').textContent=synced? (synced+' assignment(s) already synced.'):'Not synced yet.';
             openModal('calendarModal');
         }
         function saveCalendarSettings(){
-            config.calendar.googleClientId=document.getElementById('gcalClientId').value.trim();
             config.calendar.calendarId=document.getElementById('gcalCalendarId').value.trim()||'primary';
             saveConfig();
-            document.getElementById('gcalStatus').textContent='Settings saved. Click Sync now to push assignments to your calendar.';
+            document.getElementById('gcalStatus').textContent='Calendar saved. Click Sync now to sync assignments.';
         }
         function loadGsi(){
             return new Promise((resolve,reject)=>{
@@ -1072,8 +1062,7 @@
             });
         }
         function syncToGoogleCalendar(){
-            const clientId=config.google.clientId;
-            if(!clientId){ alert('Enter and save your Google OAuth Client ID first (in Google Calendar or Sign in with Google).'); return; }
+            const clientId=GOOGLE_CLIENT_ID;
             const withDue=assignments.filter(a=>a.dueDate && !isNaN(a.dueDate));
             if(!withDue.length){ alert('No assignments with due dates to sync.'); return; }
             const statusEl=document.getElementById('gcalStatus');
@@ -1086,7 +1075,7 @@
                         const evId=(config.calendar.eventMap||{})[String(a.id)];
                         const url='https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(config.calendar.calendarId||'primary')+'/events'+(evId?'/'+encodeURIComponent(evId):'');
                         const start=new Date(a.dueDate); const end=new Date(start); end.setMinutes(end.getMinutes()+30);
-                        const body={summary:(a.completed?'[DONE] ':'')+a.course+' - '+a.title, start:{dateTime:start.toISOString()}, end:{dateTime:end.toISOString()}, description:a.description||''};
+                        const body={summary:(a.completed?'✓ ':'')+a.course+' - '+a.title, start:{dateTime:start.toISOString()}, end:{dateTime:end.toISOString()}, description:a.description||''};
                         try{
                             const r=await fetch(url,{method:evId?'PUT':'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
                             if(r.ok){ const j=await r.json(); if(j.id){ config.calendar.eventMap=config.calendar.eventMap||{}; config.calendar.eventMap[String(a.id)]=j.id; } ok++; }
@@ -1119,20 +1108,13 @@
         let googleToken=null, googleSignedIn=false, _pushTimer=null, _suppressSync=false;
 
         function openGoogleModal(){
-            document.getElementById('googleClientId').value=config.google.clientId||'';
-            document.getElementById('googleOrigin').textContent='Authorized JavaScript origin to add in Google Cloud: '+window.location.origin;
             updateGoogleStatus();
             openModal('googleModal');
         }
         function updateGoogleStatus(){
             const el=document.getElementById('googleStatus'); if(!el) return;
-            if(!config.google.clientId){ el.textContent='Not configured. Enter your Google OAuth Client ID below, then click Sign in.'; return; }
-            if(googleSignedIn){ const ls=config.google.lastSync; el.textContent='Signed in. '+(ls?('Last synced '+new Date(ls).toLocaleString()):'Ready.'); }
-            else el.textContent='Not signed in. Click Sign in to sync across devices.';
-        }
-        function saveGoogleSettings(){
-            config.google.clientId=document.getElementById('googleClientId').value.trim();
-            saveConfig(); updateGoogleStatus();
+            if(googleSignedIn){ const ls=config.google.lastSync; el.textContent='Signed in. '+(ls?('Last synced '+new Date(ls).toLocaleString()):'Ready to sync.'); }
+            else el.textContent='Not signed in. Click Sign in with Google to sync across devices.';
         }
         function driveBlob(){ return JSON.stringify({config:{courses:config.courses, theme:config.theme, google:{driveFileId:config.google.driveFileId}, calendar:config.calendar}, assignments:assignments.map(a=>({...a, dueDate:a.dueDate.toISOString?a.dueDate.toISOString():a.dueDate}))}); }
         async function findDriveFile(token){
@@ -1192,8 +1174,7 @@
             }catch(e){ _suppressSync=false; console.warn('pull failed',e); const el=document.getElementById('googleStatus'); if(el) el.textContent='Sync error: '+e.message; return false; }
         }
         function signInWithGoogle(){
-            const clientId=config.google.clientId;
-            if(!clientId){ alert('Enter and save your Google OAuth Client ID first.'); openGoogleModal(); return; }
+            const clientId=GOOGLE_CLIENT_ID;
             const statusEl=document.getElementById('googleStatus'); if(statusEl) statusEl.textContent='Signing in...';
             loadGsi().then(()=>{
                 const tc=google.accounts.oauth2.initTokenClient({client_id:clientId, scope:DRIVE_SCOPE+' '+CAL_SCOPE, callback:async resp=>{
@@ -1266,7 +1247,7 @@
         }
 
         function trySilentSignIn(){
-            const clientId=config.google.clientId;
+            const clientId=GOOGLE_CLIENT_ID;
             if(!clientId || !config.google.rememberSignIn) return;
             loadGsi().then(()=>{
                 const tc=google.accounts.oauth2.initTokenClient({client_id:clientId, scope:DRIVE_SCOPE, callback:async resp=>{
