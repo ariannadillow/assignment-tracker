@@ -443,7 +443,7 @@
             courses: [],
             theme: { ...DEFAULT_THEME },
             google: { clientId: '', driveFileId: '', lastSync: '', rememberSignIn: false },
-            calendar: { calendarId: 'primary', eventMap: {} }
+            calendar: { calendarId: 'primary', eventMap: {}, syncMap: {} }
         };
 
         const STORAGE_CONFIG = 'at.config';
@@ -1061,43 +1061,57 @@
                 document.head.appendChild(s);
             });
         }
+        function assignmentCalendarFingerprint(a){
+            const due=new Date(a.dueDate).toISOString();
+            return JSON.stringify({title:a.title,course:a.course,due,description:a.description||'',completed:!!a.completed});
+        }
         function syncToGoogleCalendar(){
             const clientId=GOOGLE_CLIENT_ID;
-            const withDue=assignments.filter(a=>a.dueDate && !isNaN(a.dueDate));
-            if(!withDue.length){ alert('No assignments with due dates to sync.'); return; }
+            const today=new Date(); today.setHours(0,0,0,0);
+            const currentCourses=new Set(config.courses.filter(c=>c.current).map(c=>c.nickname));
+            const eligible=assignments.filter(a=>a.dueDate && !isNaN(a.dueDate) && currentCourses.has(a.course) && new Date(a.dueDate)>=today);
             const statusEl=document.getElementById('gcalStatus');
             const btn=document.getElementById('gcalSyncBtn'); if(btn) btn.disabled=true;
+            const eventMap=config.calendar.eventMap||{};
+            const syncMap=config.calendar.syncMap||{};
+            const changed=eligible.filter(a=>!eventMap[String(a.id)] || syncMap[String(a.id)]!==assignmentCalendarFingerprint(a));
+            if(!changed.length){
+                if(statusEl) statusEl.textContent=eligible.length?'Up to date. No current assignment changes need syncing.':'No current assignments with today-or-later due dates to sync.';
+                if(btn) btn.disabled=false;
+                return;
+            }
             const doSync=(token)=>{
-                statusEl.textContent='Syncing '+withDue.length+' assignment(s)...';
+                statusEl.textContent='Syncing '+changed.length+' update'+(changed.length===1?'':'s')+'...';
                 (async()=>{
                     let ok=0,fail=0;
-                    for(const a of withDue){
-                        const evId=(config.calendar.eventMap||{})[String(a.id)];
+                    for(const a of changed){
+                        const evId=eventMap[String(a.id)];
                         const url='https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(config.calendar.calendarId||'primary')+'/events'+(evId?'/'+encodeURIComponent(evId):'');
-                        const start=new Date(a.dueDate); const end=new Date(start); end.setMinutes(end.getMinutes()+30);
-                        const body={summary:(a.completed?'✓ ':'')+a.course+' - '+a.title, start:{dateTime:start.toISOString()}, end:{dateTime:end.toISOString()}, description:a.description||''};
+                        const start=new Date(a.dueDate); const finish=new Date(start); finish.setMinutes(finish.getMinutes()+30);
+                        const body={summary:(a.completed?'✓ ':'')+a.course+' - '+a.title,start:{dateTime:start.toISOString()},end:{dateTime:finish.toISOString()},description:a.description||''};
                         try{
                             const r=await fetch(url,{method:evId?'PUT':'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(body)});
-                            if(r.ok){ const j=await r.json(); if(j.id){ config.calendar.eventMap=config.calendar.eventMap||{}; config.calendar.eventMap[String(a.id)]=j.id; } ok++; }
-                            else { const j=await r.json().catch(()=>({})); console.warn('event fail',j); fail++; }
+                            if(r.ok){
+                                const j=await r.json();
+                                if(j.id) eventMap[String(a.id)]=j.id;
+                                syncMap[String(a.id)]=assignmentCalendarFingerprint(a);
+                                ok++;
+                            }else{ const j=await r.json().catch(()=>({})); console.warn('Calendar event sync failed',j); fail++; }
                         }catch(err){ console.warn(err); fail++; }
                     }
+                    config.calendar.eventMap=eventMap; config.calendar.syncMap=syncMap;
                     _suppressSync=true; saveConfig(); _suppressSync=false;
-                    statusEl.textContent='Done: '+ok+' synced'+(fail?(', '+fail+' failed'):'')+'.';
+                    statusEl.textContent='Done: '+ok+' update'+(ok===1?'':'s')+' synced'+(fail?(', '+fail+' failed'):'')+'.';
                     if(btn) btn.disabled=false;
                 })();
             };
             if(googleSignedIn && googleToken){ doSync(googleToken); return; }
             loadGsi().then(()=>{
-                const tokenClient=google.accounts.oauth2.initTokenClient({
-                    client_id:clientId,
-                    scope:'https://www.googleapis.com/auth/calendar.events',
-                    callback:resp=>{
-                        if(resp.error){ statusEl.textContent='Sign-in error: '+(resp.error_description||resp.error); if(btn) btn.disabled=false; return; }
-                        doSync(resp.access_token);
-                    }
-                });
-                tokenClient.requestAccessToken();
+                const tokenClient=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:'https://www.googleapis.com/auth/calendar.events',callback:resp=>{
+                    if(resp.error){ statusEl.textContent='Sign-in error: '+(resp.error_description||resp.error); if(btn) btn.disabled=false; return; }
+                    doSync(resp.access_token);
+                }});
+                tokenClient.requestAccessToken({prompt:'select_account'});
             }).catch(err=>{ statusEl.textContent=err.message; if(btn) btn.disabled=false; });
         }
 
