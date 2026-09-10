@@ -1186,21 +1186,61 @@
             }catch(e){ _suppressSync=false; console.warn('pull failed',e); const el=document.getElementById('googleStatus'); if(el) el.textContent='Sync error: '+e.message; return false; }
         }
         function signInWithGoogle(){
-            const clientId=GOOGLE_CLIENT_ID;
-            const statusEl=document.getElementById('googleStatus'); if(statusEl) statusEl.textContent='Signing in...';
-            loadGsi().then(()=>{
-                const tc=google.accounts.oauth2.initTokenClient({client_id:clientId, scope:DRIVE_SCOPE+' '+CAL_SCOPE, callback:async resp=>{
-                    if(resp.error){ if(statusEl) statusEl.textContent='Sign-in error: '+(resp.error_description||resp.error); return; }
-                    googleToken=resp.access_token; googleSignedIn=true; config.google.rememberSignIn=true;
-                    _suppressSync=true; saveConfig(); _suppressSync=false;
-                    const pulled=await pullFromDrive();
-                    if(!pulled){ await pushToDrive(); }
-                    if(statusEl) statusEl.textContent='Signed in. '+(pulled?'Synced from your account.':'Uploaded local data.');
-                    updateGoogleStatus();
-                }});
-                tc.requestAccessToken();
-            }).catch(e=>{ if(statusEl) statusEl.textContent=e.message; });
+  const clientId = GOOGLE_CLIENT_ID;
+  const statusEl = document.getElementById('googleStatus');
+  if (statusEl) statusEl.textContent = 'Signing in...';
+
+  // Ensure Google Identity Services script is loaded
+  function ensureGsiLoaded() {
+    return new Promise((resolve, reject) => {
+      if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+        return resolve();
+      }
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Could not load Google Identity Services.'));
+      document.head.appendChild(script);
+    });
+  }
+
+  ensureGsiLoaded()
+    .then(() => {
+      const tc = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: DRIVE_SCOPE + ' ' + CAL_SCOPE,
+        callback: async resp => {
+          if (resp.error) {
+            if (statusEl) statusEl.textContent = 'Sign-in error: ' + (resp.error_description || resp.error);
+            return;
+          }
+          googleToken = resp.access_token;
+          googleSignedIn = true;
+          config.google.rememberSignIn = true;
+          _suppressSync = true;
+          saveConfig();
+          _suppressSync = false;
+
+          const pulled = await pullFromDrive();
+          if (!pulled) {
+            await pushToDrive();
+          }
+
+          if (statusEl) {
+            statusEl.textContent = 'Signed in. ' + (pulled ? 'Synced from your account.' : 'Uploaded local data.');
+          }
+          updateGoogleStatus();
         }
+      });
+      tc.requestAccessToken();
+    })
+    .catch(e => {
+      console.error('Google sign-in failed:', e);
+      if (statusEl) statusEl.textContent = 'Sign-in failed: ' + (e.message || e);
+    });
+}
         function signOutGoogle(){
             if(googleToken && window.google && google.accounts.oauth2){ try{ google.accounts.oauth2.revoke(googleToken); }catch(e){} }
             googleToken=null; googleSignedIn=false; config.google.rememberSignIn=false;
