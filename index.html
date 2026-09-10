@@ -1185,10 +1185,20 @@
                 return true;
             }catch(e){ _suppressSync=false; console.warn('pull failed',e); const el=document.getElementById('googleStatus'); if(el) el.textContent='Sync error: '+e.message; return false; }
         }
-       function signInWithGoogle(){
-  const clientId = GOOGLE_CLIENT_ID;
+      function signInWithGoogle() {
+  const clientId = (config && config.google && config.google.clientId) || '';
   const statusEl = document.getElementById('googleStatus');
+
+  if (!clientId) {
+    if (statusEl) statusEl.textContent = 'Enter and save your Google OAuth Client ID first.';
+    openGoogleModal();
+    return;
+  }
+
   if (statusEl) statusEl.textContent = 'Signing in...';
+
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+  const CAL_SCOPE   = 'https://www.googleapis.com/auth/calendar.events';
 
   // Ensure Google Identity Services script is loaded
   function ensureGsiLoaded() {
@@ -1213,12 +1223,16 @@
         scope: DRIVE_SCOPE + ' ' + CAL_SCOPE,
         callback: async resp => {
           if (resp.error) {
-            if (statusEl) statusEl.textContent = 'Sign-in error: ' + (resp.error_description || resp.error);
+            if (statusEl) {
+              statusEl.textContent = 'Sign-in error: ' + (resp.error_description || resp.error);
+            }
             return;
           }
+
           googleToken = resp.access_token;
           googleSignedIn = true;
           config.google.rememberSignIn = true;
+
           _suppressSync = true;
           saveConfig();
           _suppressSync = false;
@@ -1231,9 +1245,13 @@
           if (statusEl) {
             statusEl.textContent = 'Signed in. ' + (pulled ? 'Synced from your account.' : 'Uploaded local data.');
           }
-          updateGoogleStatus();
+
+          if (typeof updateGoogleStatus === 'function') {
+            updateGoogleStatus();
+          }
         }
       });
+
       tc.requestAccessToken();
     })
     .catch(e => {
