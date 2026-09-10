@@ -1185,7 +1185,7 @@
                 return true;
             }catch(e){ _suppressSync=false; console.warn('pull failed',e); const el=document.getElementById('googleStatus'); if(el) el.textContent='Sync error: '+e.message; return false; }
         }
-        function signInWithGoogle(){
+       function signInWithGoogle(){
   const clientId = GOOGLE_CLIENT_ID;
   const statusEl = document.getElementById('googleStatus');
   if (statusEl) statusEl.textContent = 'Signing in...';
