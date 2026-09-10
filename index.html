@@ -1186,7 +1186,8 @@
             }catch(e){ _suppressSync=false; console.warn('pull failed',e); const el=document.getElementById('googleStatus'); if(el) el.textContent='Sync error: '+e.message; return false; }
         }
       function signInWithGoogle() {
-  const clientId = (config && config.google && config.google.clientId) || '';
+  // Hard-coded Google OAuth Client ID
+  const clientId = '57171930474-uqpm500v4e04r8v1jmr5qfsiv5f1pjkv.apps.googleusercontent.com';
   const statusEl = document.getElementById('googleStatus');
 
   if (!clientId) {
@@ -1200,7 +1201,6 @@
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
   const CAL_SCOPE   = 'https://www.googleapis.com/auth/calendar.events';
 
-  // Ensure Google Identity Services script is loaded
   function ensureGsiLoaded() {
     return new Promise((resolve, reject) => {
       if (window.google && window.google.accounts && window.google.accounts.oauth2) {
