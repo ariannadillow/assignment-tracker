@@ -240,6 +240,58 @@
             .assignment-title { font-size: 14px; }
             .assignments-area { padding: 14px 16px; }
         }
+        /* Subtasks displayed on assignment cards */
+.assignment-subtasks {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: 8px 0 10px;
+}
+
+.assignment-subtask {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    font-size: 13px;
+    line-height: 1.4;
+    cursor: pointer;
+}
+
+.assignment-subtask input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 2px 0 0;
+    flex-shrink: 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.assignment-subtask span {
+    overflow-wrap: anywhere;
+}
+
+.assignment-subtask input:checked + span {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+
+/* Rows inside the Add/Edit Assignment window */
+.subtask-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.subtask-edit-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Shared snapshots remain read-only */
+body.viewer .assignment-subtask,
+body.viewer .assignment-subtask input {
+    cursor: default;
+}
     </style>
 </head>
 <body>
@@ -698,6 +750,7 @@
             editingId = null;
             document.getElementById('modalTitle').textContent = 'Add Assignment';
             document.getElementById('assignmentForm').reset();
+            loadSubtaskInputs();
             document.getElementById('pasteText').value='';
             document.getElementById('pastePreview').style.display='none';
             setAddMode('form');
@@ -748,6 +801,7 @@
                 description: document.getElementById('description').value,
                 timeEstimate: parseFloat(document.getElementById('timeEstimate').value) || 0,
                 difficulty: document.getElementById('difficulty').value,
+                subtasks: collectSubtasksFromForm(),
                 completed: editingId ? (assignments.find(x=>x.id===editingId)?.completed || false) : false
             };
             if (editingId) { const i = assignments.findIndex(x=>x.id===editingId); if (i>-1) assignments[i]=a; }
@@ -819,7 +873,136 @@
             parsed.forEach(a=>assignments.push(a));
             saveAssignmentsToStorage(); renderAssignments(); closeModal('assignmentModal');
         }
+// ---- Subtasks ----
 
+function normalizeSubtasks(subtasks) {
+    if (!Array.isArray(subtasks)) return [];
+
+    return subtasks.map(subtask => {
+        if (typeof subtask === 'string') {
+            return { text: subtask, completed: false };
+        }
+
+        return {
+            ...subtask,
+            text: String(subtask?.text ?? subtask?.title ?? ''),
+            completed: Boolean(subtask?.completed)
+        };
+    });
+}
+
+// Create one editable row in the Add/Edit Assignment window.
+function appendSubtaskInputRow(subtask) {
+    const row = document.createElement('div');
+    row.className = 'subtask-edit-row';
+
+    // Keep any additional properties already stored on the subtask.
+    row.subtaskData = { ...subtask };
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = Boolean(subtask.completed);
+    checkbox.setAttribute('aria-label', 'Subtask completed');
+
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    textInput.className = 'subtask-edit-text';
+    textInput.value = subtask.text;
+    textInput.setAttribute('aria-label', 'Subtask text');
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'btn btn-secondary';
+    removeButton.textContent = '×';
+    removeButton.setAttribute('aria-label', 'Remove subtask');
+    removeButton.addEventListener('click', () => row.remove());
+
+    row.append(checkbox, textInput, removeButton);
+    document.getElementById('subtaskInputList').appendChild(row);
+}
+
+// Called by the existing "+ Add" button.
+function addSubtaskInputRow() {
+    const input = document.getElementById('newSubtaskText');
+    const text = input.value.trim();
+
+    if (!text) return;
+
+    appendSubtaskInputRow({ text, completed: false });
+    input.value = '';
+    input.focus();
+}
+
+// Load an assignment's subtasks into the editing window.
+function loadSubtaskInputs(subtasks = []) {
+    document.getElementById('subtaskInputList').replaceChildren();
+    document.getElementById('newSubtaskText').value = '';
+
+    normalizeSubtasks(subtasks).forEach(appendSubtaskInputRow);
+}
+
+// Collect the editing window's subtasks when saving.
+function collectSubtasksFromForm() {
+    // Also save text typed into the Add box even if "+ Add"
+    // was not clicked before Save Assignment(s).
+    addSubtaskInputRow();
+
+    return Array.from(
+        document.querySelectorAll('#subtaskInputList .subtask-edit-row')
+    ).map(row => ({
+        ...row.subtaskData,
+        text: row.querySelector('.subtask-edit-text').value.trim(),
+        completed: row.querySelector('input[type="checkbox"]').checked
+    })).filter(subtask => subtask.text);
+}
+
+// Build the small checkboxes shown on the main page.
+function renderAssignmentSubtasks(assignment) {
+    const subtasks = normalizeSubtasks(assignment.subtasks);
+    if (!subtasks.length) return '';
+
+    const readOnly = document.body.classList.contains('viewer');
+
+    return `
+        <div class="assignment-subtasks">
+            ${subtasks.map((subtask, index) => `
+                <label class="assignment-subtask">
+                    <input
+                        type="checkbox"
+                        data-assignment-id="${escapeAttr(assignment.id)}"
+                        data-subtask-index="${index}"
+                        ${subtask.completed ? 'checked' : ''}
+                        ${readOnly ? 'disabled' : ''}
+                        onchange="setSubtaskCompleted(
+                            this.dataset.assignmentId,
+                            Number(this.dataset.subtaskIndex),
+                            this.checked
+                        )"
+                    >
+                    <span>${escapeHtml(subtask.text)}</span>
+                </label>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Save a main-page checkbox change.
+function setSubtaskCompleted(assignmentId, subtaskIndex, completed) {
+    if (document.body.classList.contains('viewer')) return;
+
+    const assignment = assignments.find(
+        item => String(item.id) === String(assignmentId)
+    );
+
+    if (!assignment) return;
+
+    assignment.subtasks = normalizeSubtasks(assignment.subtasks);
+
+    if (!assignment.subtasks[subtaskIndex]) return;
+
+    assignment.subtasks[subtaskIndex].completed = completed;
+    saveAssignmentsToStorage();
+}
         function toggleAssignment(id){ const a=assignments.find(x=>String(x.id)===String(id)); if(a){ a.completed=!a.completed; saveAssignmentsToStorage(); renderAssignments(); } }
         function deleteAssignment(id){ assignments=assignments.filter(a=>a.id!==id); saveAssignmentsToStorage(); renderAssignments(); }
         function editAssignment(id){
@@ -840,6 +1023,7 @@
             document.getElementById('description').value=a.description||'';
             document.getElementById('timeEstimate').value=a.timeEstimate||0;
             document.getElementById('difficulty').value=a.difficulty||'';
+            loadSubtaskInputs(a.subtasks);
             openModal('assignmentModal');
         }
 
@@ -908,6 +1092,7 @@
                             <span class="badge badge-type">${escapeHtml(a.type)}</span>
                             <span class="badge badge-priority ${pl==='Critical'||pl==='High'?'high':''}">${pl}</span>
                         </div>
+                        ${renderAssignmentSubtasks(a)}
                         <div class="assignment-stats">
                             <div><span class="stat-label">&#128197; Due:</span> <span style="color:${over?'var(--danger)':'var(--primary)'}">${formatDate(a.dueDate)}</span></div>
                             ${a.gradeWeight?`<div><span class="stat-label">&#9878; Weight:</span> ${a.gradeWeight}%</div>`:''}
