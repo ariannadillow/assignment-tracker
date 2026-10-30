@@ -360,6 +360,58 @@ body.viewer .assignment-subtask input {
 input[type="checkbox"] {
     accent-color: var(--primary);
 }
+#assignmentsList[hidden],
+#calendarPage[hidden] {
+    display: none !important;
+}
+
+#calendarPage {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+}
+
+#calendarPage .calendar-toolbar {
+    flex-shrink: 0;
+}
+
+.calendar-page-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-gutter: stable;
+}
+
+.calendar-page-inner {
+    min-width: 650px;
+}
+
+.calendar-weekdays {
+    background: var(--surface);
+}
+
+.calendar-weekdays > div {
+    padding: 10px 6px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.planner-calendar-day {
+    background: var(--surface);
+}
+
+.planner-calendar-event {
+    background: var(--accent);
+    color: var(--accent-text, #7a3a52);
+}
+
+.planner-calendar-event.completed {
+    background: var(--success);
+    color: var(--type-text, #3a5a44);
+}
     </style>
 </head>
 <body>
@@ -424,12 +476,12 @@ input[type="checkbox"] {
                             <button class="edit-item" onclick="clearAllData()">Clear all data</button>
                             <div class="edit-sep"></div>
                             <button class="edit-item" onclick="openThemeModal()">Edit color theme</button>
-                            <button class="edit-item" onclick="openPlannerCalendar()">📅 Calendar</button>
                             <button class="edit-item" onclick="downloadICS()">📁 Download calendar file (.ics)</button>
                             <div class="edit-sep"></div>
                             <button class="edit-item" onclick="openGoogleModal()">Sign in with Google</button>
                         </div>
                     </div>
+                    <button type="button" class="btn btn-secondary" id="calendarViewButton" onclick="togglePlannerView()">📅 Calendar</button>
                     <button class="btn btn-primary" onclick="openAddModal()">+ Add Assignment</button>
                 </div>
             </div>
@@ -463,6 +515,29 @@ input[type="checkbox"] {
                     </div>
                 </div>
                 <div id="assignmentsList"></div>
+
+<section id="calendarPage" hidden>
+    <div class="calendar-toolbar">
+        <button type="button" class="btn btn-secondary" onclick="changePlannerMonth(-1)">← Previous</button>
+        <h3 id="plannerMonthLabel"></h3>
+        <button type="button" class="btn btn-secondary" onclick="changePlannerMonth(1)">Next →</button>
+    </div>
+
+    <div class="calendar-page-scroll">
+        <div class="calendar-page-inner">
+            <div class="calendar-weekdays">
+                <div>Sun</div>
+                <div>Mon</div>
+                <div>Tue</div>
+                <div>Wed</div>
+                <div>Thu</div>
+                <div>Fri</div>
+                <div>Sat</div>
+            </div>
+            <div id="plannerCalendarGrid" class="planner-calendar-grid"></div>
+        </div>
+    </div>
+</section>
             </div>
         </div>
     </div>
@@ -539,17 +614,6 @@ input[type="checkbox"] {
                 <button type="button" class="btn btn-secondary" onclick="resetTheme()">Reset to default</button>
                 <button type="button" class="btn btn-primary" onclick="saveTheme()">Save theme</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Planner Calendar Modal -->
-    <div id="plannerCalendarModal" class="modal">
-        <div class="modal-content" style="max-width:900px">
-            <div class="modal-header"><h2>📅 Assignment Calendar</h2><button class="close-btn" onclick="closeModal('plannerCalendarModal')">&times;</button></div>
-            <div class="calendar-toolbar"><button class="btn btn-secondary" onclick="changePlannerMonth(-1)">← Previous</button><h3 id="plannerMonthLabel"></h3><button class="btn btn-secondary" onclick="changePlannerMonth(1)">Next →</button></div>
-            <div class="calendar-weekdays"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div>
-            <div id="plannerCalendarGrid" class="planner-calendar-grid"></div>
-            <div class="hint" style="margin-top:12px">Shows current-course assignments. Click an assignment to edit it. Completed assignments have a ✓.</div>
         </div>
     </div>
 
@@ -1205,6 +1269,9 @@ function setSubtaskCompleted(assignmentId, subtaskIndex, completed) {
         function getPriorityLabel(p){ if(p>=50) return 'Critical'; if(p>=30) return 'High'; if(p>=15) return 'Medium'; return 'Low'; }
 
         function renderAssignments(){
+            if (document.getElementById('calendarPage')?.hidden === false) {
+    renderPlannerCalendar();
+}
             const filtered=getFilteredAssignments(); const sorted=getSortedAssignments(filtered);
             const list=document.getElementById('assignmentsList');
             const scope = currentCourseTab==='All' ? assignments.filter(a=>{ const c=courseByNickname(a.course); return config.showPastCourses || !c || c.current; }) : assignments.filter(a=>a.course===currentCourseTab);
@@ -1411,11 +1478,30 @@ function setSubtaskCompleted(assignmentId, subtaskIndex, completed) {
         // ---- In-app calendar ----
         let plannerCalendarDate=new Date();
         plannerCalendarDate=new Date(plannerCalendarDate.getFullYear(),plannerCalendarDate.getMonth(),1);
-        function openPlannerCalendar(){
-            plannerCalendarDate=new Date(plannerCalendarDate.getFullYear(),plannerCalendarDate.getMonth(),1);
-            renderPlannerCalendar();
-            openModal('plannerCalendarModal');
-        }
+        let plannerView = 'assignments';
+
+function togglePlannerView() {
+    plannerView = plannerView === 'assignments'
+        ? 'calendar'
+        : 'assignments';
+
+    const calendarOpen = plannerView === 'calendar';
+
+    document.getElementById('assignmentsList').hidden = calendarOpen;
+    document.getElementById('calendarPage').hidden = !calendarOpen;
+
+    document.getElementById('calendarViewButton').textContent =
+        calendarOpen ? '☰ Assignments' : '📅 Calendar';
+
+    document.querySelector('.main-content > .header h1').textContent =
+        calendarOpen ? '📅 My Calendar' : '📋 My Assignments';
+
+    document.getElementById('editDropdown').classList.remove('open');
+
+    if (calendarOpen) {
+        renderPlannerCalendar();
+    }
+}
         function changePlannerMonth(amount){
             plannerCalendarDate=new Date(plannerCalendarDate.getFullYear(),plannerCalendarDate.getMonth()+amount,1);
             renderPlannerCalendar();
@@ -1428,8 +1514,11 @@ function setSubtaskCompleted(assignmentId, subtaskIndex, completed) {
             const year=plannerCalendarDate.getFullYear(), month=plannerCalendarDate.getMonth();
             label.textContent=plannerCalendarDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
             const first=new Date(year,month,1), days=new Date(year,month+1,0).getDate();
-            const currentCourses=new Set(config.courses.filter(c=>c.current).map(c=>c.nickname));
-            const visible=assignments.filter(a=>a.dueDate&&!isNaN(a.dueDate)&&currentCourses.has(a.course));
+            const visible = getFilteredAssignments().filter(
+    assignment =>
+        assignment.dueDate &&
+        !isNaN(new Date(assignment.dueDate))
+);
             const today=new Date();
             let html='';
             for(let i=0;i<first.getDay();i++) html+='<div class="planner-calendar-day muted"></div>';
@@ -1437,16 +1526,31 @@ function setSubtaskCompleted(assignmentId, subtaskIndex, completed) {
                 const date=new Date(year,month,day);
                 const due=visible.filter(a=>sameCalendarDay(new Date(a.dueDate),date));
                 html+='<div class="planner-calendar-day '+(sameCalendarDay(date,today)?'today':'')+'"><div class="planner-calendar-date">'+day+'</div>';
-                html+=due.map(a=>'<button class="planner-calendar-event '+(a.completed?'completed':'')+'" title="Edit '+escapeAttr(a.title)+'" onclick="openCalendarAssignment('+JSON.stringify(String(a.id))+')">'+(a.completed?'✓ ':'')+escapeHtml(a.course)+' — '+escapeHtml(a.title)+'</button>').join('');
+                html += due.map(a => `
+    <button
+        type="button"
+        class="planner-calendar-event ${a.completed ? 'completed' : ''}"
+        title="${escapeAttr(a.title)}"
+        data-assignment-id="${escapeAttr(a.id)}"
+        onclick="openCalendarAssignment(this.dataset.assignmentId)"
+    >${a.completed ? '✓ ' : ''}${escapeHtml(a.course)} — ${escapeHtml(a.title)}</button>
+`).join('');
                 html+='</div>';
             }
             const total=first.getDay()+days; for(let i=total;i<42;i++) html+='<div class="planner-calendar-day muted"></div>';
             grid.innerHTML=html;
         }
-        function openCalendarAssignment(id){
-            closeModal('plannerCalendarModal');
-            editAssignment(id);
-        }
+        function openCalendarAssignment(id) {
+    if (document.body.classList.contains('viewer')) return;
+
+    const assignment = assignments.find(
+        item => String(item.id) === String(id)
+    );
+
+    if (assignment) {
+        editAssignment(assignment.id);
+    }
+}
 
         // ---- Google sign-in + Drive sync (cross-device) ----
         const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
