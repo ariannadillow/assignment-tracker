@@ -292,6 +292,59 @@ body.viewer .assignment-subtask,
 body.viewer .assignment-subtask input {
     cursor: default;
 }
+.main-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.main-content > .header {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 60;
+}
+
+.assignments-area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.stats-panel {
+    flex-shrink: 0;
+}
+
+#assignmentsList {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-gutter: stable;
+}
+
+@media (max-width: 768px) {
+    .container {
+        height: 100vh;
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    .sidebar {
+        max-height: 30vh;
+        max-height: 30dvh;
+        overflow-y: auto;
+    }
+
+    .main-content {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+}
     </style>
 </head>
 <body>
@@ -360,7 +413,6 @@ body.viewer .assignment-subtask input {
                             <button class="edit-item" onclick="downloadICS()">📁 Download calendar file (.ics)</button>
                             <div class="edit-sep"></div>
                             <button class="edit-item" onclick="openGoogleModal()">Sign in with Google</button>
-                            <button class="edit-item" onclick="openShareModal()">Share view</button>
                         </div>
                     </div>
                     <button class="btn btn-primary" onclick="openAddModal()">+ Add Assignment</button>
